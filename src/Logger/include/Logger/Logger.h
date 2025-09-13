@@ -119,7 +119,13 @@ namespace Log
 	LOGGER_EXPORT Color getColorForLevel(Level level);
 	// Initializes global logging
 	// Call this once at the start of a program
+	// All logs will be written to 'stream'
 	LOGGER_EXPORT void initLogging(std::ostream& stream, const LogInitOptions& opts = LogInitOptions());
+	// Initializes global logging
+	// Call this once at the start of a program
+	// Normal logs will be written to primaryStream
+	// Erorr logs (Error, Critical) will be written to errorStream
+	LOGGER_EXPORT void initLogging(std::ostream& primaryStream, std::ostream& errorStream, const LogInitOptions& opts = LogInitOptions());
 	// Simplifies the complex semi-mangled function names
 	// Example:
 	//    void __cdecl Log::initLogging(class std::basic_ostream<char,struct std::char_traits<char> > &,const struct Log::LogInitOptions &)

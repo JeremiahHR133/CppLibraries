@@ -18,3 +18,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "App")
+
+install(TARGETS ${PROJECT_NAME}
+	RUNTIME DESTINATION bin
+)

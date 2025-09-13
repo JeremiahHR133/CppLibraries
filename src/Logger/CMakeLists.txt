@@ -24,3 +24,7 @@ target_compile_definitions(${PROJECT_NAME}
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
+
+install(TARGETS ${PROJECT_NAME}
+	RUNTIME DESTINATION bin
+)

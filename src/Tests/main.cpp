@@ -4,7 +4,7 @@
 
 int main()
 {
-	Log::initLogging(std::cout);
+	Log::initLogging(std::cout, std::cerr);
 
 	Log::Debug().log("Debug log {}", "example!");
 	Log::Info().log("Info log {}", "example!");

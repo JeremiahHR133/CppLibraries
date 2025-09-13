@@ -8,25 +8,29 @@ namespace
 	{
 	public:
 		LogManager();
-		LogManager(std::ostream& stream, const Log::LogInitOptions& opts);
+		LogManager(std::ostream& primaryStream, std::ostream& errorStream, const Log::LogInitOptions& opts);
 		~LogManager();
 
 		bool initialized() const;
-		std::ostream* stream() const;
+		std::ostream* primaryStream() const;
+		std::ostream* errorStream() const;
 		const Log::LogInitOptions& getOpts() const;
 
 	private:
-		std::ostream* m_stream;
+		std::ostream* m_primaryStream;
+		std::ostream* m_errorStream;
 		bool m_initialized;
 		Log::LogInitOptions m_opts;
 	};
 	LogManager::LogManager()
-		: m_stream(nullptr)
+		: m_primaryStream(nullptr)
+		, m_errorStream(nullptr)
 		, m_initialized(false)
 	{
 	}
-	LogManager::LogManager(std::ostream& stream, const Log::LogInitOptions& opts)
-		: m_stream(&stream)
+	LogManager::LogManager(std::ostream& primaryStream, std::ostream& errorStream, const Log::LogInitOptions& opts)
+		: m_primaryStream(&primaryStream)
+		, m_errorStream(&errorStream)
 		, m_initialized(true)
 		, m_opts(opts)
 	{
@@ -37,9 +41,13 @@ namespace
 	{
 		return m_initialized;
 	}
-	std::ostream* LogManager::stream() const
+	std::ostream* LogManager::primaryStream() const
 	{
-		return m_stream;
+		return m_primaryStream;
+	}
+	std::ostream* LogManager::errorStream() const
+	{
+		return m_errorStream;
 	}
 
 	const Log::LogInitOptions& LogManager::getOpts() const
@@ -115,6 +123,23 @@ namespace
 		{Log::Color::backgroundHighIntensity_cyan,   "\033[0;106m"},
 		{Log::Color::backgroundHighIntensity_white,  "\033[0;107m"},
 	};
+
+	void internalInitLogging(std::ostream& primary, std::ostream& error, const Log::LogInitOptions& opts)
+	{
+		if (g_logManager.initialized())
+		{
+			Log::Warn().log("Log already initialized; Ignoring additional call to initLogging!");
+		}
+		else
+		{
+			g_logManager = LogManager(primary, error, opts);
+
+			if (g_logManager.getOpts().reportLogInitialized)
+			{
+				Log::Info().log("Logging initialized!");
+			}
+		}
+	}
 }
 
 namespace Log
@@ -204,70 +229,65 @@ namespace Log
 
 	void LoggerBase::logInternal(std::string_view message)
 	{
-		if (std::ostream* streamPtr = g_logManager.stream())
+		std::ostream* stdStreamPtr = g_logManager.primaryStream();
+		std::ostream* errStreamPtr = g_logManager.errorStream();
+		if (!stdStreamPtr || !errStreamPtr)
 		{
-			std::ostream& stream = *streamPtr;
+			assert(false && "Stream is nullptr! Was Log::initLogging called?");
+			return;
+		}
 
+		std::ostream& stream = (m_level == Level::Error || m_level == Level::Critical)
+			? *errStreamPtr
+			: *stdStreamPtr;
+
+		if (g_logManager.getOpts().printColor)
+			stream << getColorStr(getColorForLevel(m_level));
+
+		stream << "[" << getStringForLevel(m_level) << "]";
+
+		for (int i = 0; i < m_indentation; i++)
+		{
+			stream << g_logManager.getOpts().indentationLevel;
+		}
+
+		if (g_logManager.getOpts().printColor)
+			stream << getColorStr(Color::reset);
+
+		stream << " " << message;
+
+		if (g_logManager.getOpts().printLocationInfo)
+		{
 			if (g_logManager.getOpts().printColor)
-				stream << getColorStr(getColorForLevel(m_level));
+				stream << getColorStr(Color::highIntensity_black);
 
 			stream
-				<< "[" << getStringForLevel(m_level) << "]";
-
-			for (int i = 0; i < m_indentation; i++)
-			{
-				stream << g_logManager.getOpts().indentationLevel;
-			}
+				<< " --- ";
+			if (g_logManager.getOpts().logFullFunctionName)
+				stream << m_location.function_name();
+			else
+				stream << getSimpleFunctionName(m_location.function_name());
+			stream
+				<< " ("
+				<< m_location.file_name() << ":"
+				<< m_location.line() << ","
+				<< m_location.column() << ")"
+				;
 
 			if (g_logManager.getOpts().printColor)
 				stream << getColorStr(Color::reset);
-
-			stream << " " << message;
-
-			if (g_logManager.getOpts().printLocationInfo)
-			{
-				if (g_logManager.getOpts().printColor)
-					stream << getColorStr(Color::highIntensity_black);
-
-				stream
-					<< " --- ";
-				if (g_logManager.getOpts().logFullFunctionName)
-					stream << m_location.function_name();
-				else
-					stream << getSimpleFunctionName(m_location.function_name());
-				stream
-					<< " ("
-					<< m_location.file_name() << ":"
-					<< m_location.line() << ","
-					<< m_location.column() << ")"
-					;
-
-				if (g_logManager.getOpts().printColor)
-					stream << getColorStr(Color::reset);
-			}
-
-			stream << "\n";
 		}
-		else
-		{
-			assert(false && "Stream is nullptr! Was Log::initLogging called?");
-		}
+
+		stream << "\n";
 	}
 
 	void initLogging(std::ostream& stream, const LogInitOptions& opts)
 	{
-		if (g_logManager.initialized())
-		{
-			Warn().log("Log already initialized; Ignoring additional call to initLogging!");
-		}
-		else
-		{
-			g_logManager = LogManager(stream, opts);
+		internalInitLogging(stream, stream, opts);
+	}
 
-			if (g_logManager.getOpts().reportLogInitialized)
-			{
-				Info().log("Logging initialized!");
-			}
-		}
+	void initLogging(std::ostream& primaryStream, std::ostream& errorStream, const LogInitOptions& opts)
+	{
+		internalInitLogging(primaryStream, errorStream, opts);
 	}
 }
