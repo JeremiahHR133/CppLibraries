@@ -106,6 +106,7 @@ namespace Log
 		bool printLocationInfo = true;
 		bool reportLogInitialized = true;
 		bool logFullFunctionName = false;
+		std::string indentationLevel = "   ";
 	};
 
 	// Returns a map of <color enum, string holding color escape code>
@@ -134,7 +135,7 @@ namespace Log
 	class LOGGER_EXPORT LoggerBase
 	{
 	public:
-		LoggerBase(Level level, const std::source_location& location);
+		LoggerBase(int indentaiton, Level level, const std::source_location& location);
 		virtual ~LoggerBase();
 
 		template<class... Args>
@@ -152,51 +153,57 @@ namespace Log
 	private:
 		Level m_level;
 		std::source_location m_location;
+		int m_indentation;
 	};
 
 	// Create a debug log
 	// Example usage:
 	//    Log::Debug().log("Example debug log! Value: {:.3f}", 1.0f);
 	//    Log::Debug().log("Log 1").log("Log 2");
+	//    Log::Debug(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT Debug : public LoggerBase
 	{
 	public:
-		Debug(const std::source_location& location = std::source_location::current()) : LoggerBase(Level::Debug, location) {};
+		Debug(int indentation = 0, const std::source_location& location = std::source_location::current()) : LoggerBase(indentation, Level::Debug, location) {};
 	};
 	// Create an info log
 	// Example usage:
 	//    Log::Info().log("Example info log! Value: {:.3f}", 1.0f);
 	//    Log::Info().log("Log 1").log("Log 2");
+	//    Log::Info(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT Info : public LoggerBase
 	{
 	public:
-		Info(const std::source_location& location = std::source_location::current()) : LoggerBase(Level::Info, location) {};
+		Info(int indentation = 0, const std::source_location& location = std::source_location::current()) : LoggerBase(indentation, Level::Info, location) {};
 	};
 	// Create a warning log
 	// Example usage:
 	//    Log::Warn().log("Example warning log! Value: {:.3f}", 1.0f);
 	//    Log::Warn().log("Log 1").log("Log 2");
+	//    Log::Warn(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT Warn : public LoggerBase
 	{
 	public:
-		Warn(const std::source_location& location = std::source_location::current()) : LoggerBase(Level::Warning, location) {};
+		Warn(int indentation = 0, const std::source_location& location = std::source_location::current()) : LoggerBase(indentation, Level::Warning, location) {};
 	};
 	// Create an error log
 	// Example usage:
 	//    Log::Error().log("Example error log! Value: {:.3f}", 1.0f);
 	//    Log::Error().log("Log 1").log("Log 2");
+	//    Log::Error(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT Error : public LoggerBase
 	{
 	public:
-		Error(const std::source_location& location = std::source_location::current()) : LoggerBase(Level::Error, location) {};
+		Error(int indentation = 0, const std::source_location& location = std::source_location::current()) : LoggerBase(indentation, Level::Error, location) {};
 	};
 	// Create a critical log
 	// Example usage:
 	//    Log::Critical().log("Example critical log! Value: {:.3f}", 1.0f);
 	//    Log::Critical().log("Log 1").log("Log 2");
+	//    Log::Critical(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT Critical : public LoggerBase
 	{
 	public:
-		Critical(const std::source_location& location = std::source_location::current()) : LoggerBase(Level::Critical, location) {};
+		Critical(int indentation = 0, const std::source_location& location = std::source_location::current()) : LoggerBase(indentation, Level::Critical, location) {};
 	};
 }

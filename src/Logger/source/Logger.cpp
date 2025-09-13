@@ -193,9 +193,10 @@ namespace Log
 		return "";
 	}
 
-	LoggerBase::LoggerBase(Level level, const std::source_location& location)
+	LoggerBase::LoggerBase(int indentaion, Level level, const std::source_location& location)
 		: m_level(level)
 		, m_location(location)
+		, m_indentation(indentaion)
 	{
 	}
 
@@ -212,6 +213,11 @@ namespace Log
 
 			stream
 				<< "[" << getStringForLevel(m_level) << "]";
+
+			for (int i = 0; i < m_indentation; i++)
+			{
+				stream << g_logManager.getOpts().indentationLevel;
+			}
 
 			if (g_logManager.getOpts().printColor)
 				stream << getColorStr(Color::reset);

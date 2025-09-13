@@ -13,4 +13,8 @@ int main()
 	Log::Critical().log("Critical log {}", "example!");
 
 	Log::Info().log("Test double log").log("   1").log("   2");
+
+	Log::Info().log("Test of indentation!");
+	Log::Info(1).log("Test of indentation!");
+	Log::Info(2).log("Test of indentation!");
 }
