@@ -1,0 +1,267 @@
+#include <Logger/Logger.h>
+
+#include <assert.h>
+
+namespace
+{
+	class LogManager
+	{
+	public:
+		LogManager();
+		LogManager(std::ostream& stream, const Log::LogInitOptions& opts);
+		~LogManager();
+
+		bool initialized() const;
+		std::ostream* stream() const;
+		const Log::LogInitOptions& getOpts() const;
+
+	private:
+		std::ostream* m_stream;
+		bool m_initialized;
+		Log::LogInitOptions m_opts;
+	};
+	LogManager::LogManager()
+		: m_stream(nullptr)
+		, m_initialized(false)
+	{
+	}
+	LogManager::LogManager(std::ostream& stream, const Log::LogInitOptions& opts)
+		: m_stream(&stream)
+		, m_initialized(true)
+		, m_opts(opts)
+	{
+	}
+	LogManager::~LogManager() = default;
+
+	bool LogManager::initialized() const
+	{
+		return m_initialized;
+	}
+	std::ostream* LogManager::stream() const
+	{
+		return m_stream;
+	}
+
+	const Log::LogInitOptions& LogManager::getOpts() const
+	{
+		return m_opts;
+	}
+
+	LogManager g_logManager;
+	const std::unordered_map<Log::Color, std::string> g_colorMap =
+	{
+		{Log::Color::reset, "\033[0m"},
+
+		{Log::Color::regular_black,  "\033[0;30m"},
+		{Log::Color::regular_red,    "\033[0;31m"},
+		{Log::Color::regular_green,  "\033[0;32m"},
+		{Log::Color::regular_yellow, "\033[0;33m"},
+		{Log::Color::regular_blue,   "\033[0;34m"},
+		{Log::Color::regular_purple, "\033[0;35m"},
+		{Log::Color::regular_cyan,   "\033[0;36m"},
+		{Log::Color::regular_white,  "\033[0;37m"},
+
+		{Log::Color::bold_black,  "\033[1;30m"},
+		{Log::Color::bold_red,    "\033[1;31m"},
+		{Log::Color::bold_green,  "\033[1;32m"},
+		{Log::Color::bold_yellow, "\033[1;33m"},
+		{Log::Color::bold_blue,   "\033[1;34m"},
+		{Log::Color::bold_purple, "\033[1;35m"},
+		{Log::Color::bold_cyan,   "\033[1;36m"},
+		{Log::Color::bold_white,  "\033[1;37m"},
+
+		{Log::Color::underline_black,  "\033[4;30m"},
+		{Log::Color::underline_red,    "\033[4;31m"},
+		{Log::Color::underline_green,  "\033[4;32m"},
+		{Log::Color::underline_yellow, "\033[4;33m"},
+		{Log::Color::underline_blue,   "\033[4;34m"},
+		{Log::Color::underline_purple, "\033[4;35m"},
+		{Log::Color::underline_cyan,   "\033[4;36m"},
+		{Log::Color::underline_white,  "\033[4;37m"},
+
+		{Log::Color::background_black,  "\033[40m"},
+		{Log::Color::background_red,    "\033[41m"},
+		{Log::Color::background_green,  "\033[42m"},
+		{Log::Color::background_yellow, "\033[43m"},
+		{Log::Color::background_blue,   "\033[44m"},
+		{Log::Color::background_purple, "\033[45m"},
+		{Log::Color::background_cyan,   "\033[46m"},
+		{Log::Color::background_white,  "\033[47m"},
+
+		{Log::Color::highIntensity_black,  "\033[0;90m"},
+		{Log::Color::highIntensity_red,    "\033[0;91m"},
+		{Log::Color::highIntensity_green,  "\033[0;92m"},
+		{Log::Color::highIntensity_yellow, "\033[0;93m"},
+		{Log::Color::highIntensity_blue,   "\033[0;94m"},
+		{Log::Color::highIntensity_purple, "\033[0;95m"},
+		{Log::Color::highIntensity_cyan,   "\033[0;96m"},
+		{Log::Color::highIntensity_white,  "\033[0;97m"},
+
+		{Log::Color::boldHighIntensity_black,  "\033[1;90m"},
+		{Log::Color::boldHighIntensity_red,    "\033[1;91m"},
+		{Log::Color::boldHighIntensity_green,  "\033[1;92m"},
+		{Log::Color::boldHighIntensity_yellow, "\033[1;93m"},
+		{Log::Color::boldHighIntensity_blue,   "\033[1;94m"},
+		{Log::Color::boldHighIntensity_purple, "\033[1;95m"},
+		{Log::Color::boldHighIntensity_cyan,   "\033[1;96m"},
+		{Log::Color::boldHighIntensity_white,  "\033[1;97m"},
+
+		{Log::Color::backgroundHighIntensity_black,  "\033[0;100m"},
+		{Log::Color::backgroundHighIntensity_red,    "\033[0;101m"},
+		{Log::Color::backgroundHighIntensity_green,  "\033[0;102m"},
+		{Log::Color::backgroundHighIntensity_yellow, "\033[0;103m"},
+		{Log::Color::backgroundHighIntensity_blue,   "\033[0;104m"},
+		{Log::Color::backgroundHighIntensity_purple, "\033[0;105m"},
+		{Log::Color::backgroundHighIntensity_cyan,   "\033[0;106m"},
+		{Log::Color::backgroundHighIntensity_white,  "\033[0;107m"},
+	};
+}
+
+namespace Log
+{
+	const std::unordered_map<Color, std::string>& getColorMap()
+	{
+		return g_colorMap;
+	}
+
+	const std::string& getColorStr(Color color)
+	{
+		return g_colorMap.at(color);
+	}
+
+	std::string getStringForLevel(Level level)
+	{
+		switch (level)
+		{
+		case Level::Debug:
+			return "Debug";
+			break;
+		case Level::Info:
+			return "Info ";
+			break;
+		case Level::Warning:
+			return "Warn ";
+			break;
+		case Level::Error:
+			return "Error";
+			break;
+		case Level::Critical:
+			return "CRITICAL";
+			break;
+		default:
+			break;
+		}
+
+		return "";
+	}
+
+	Color getColorForLevel(Level level)
+	{
+		switch (level)
+		{
+		case Level::Debug:
+			return Color::highIntensity_white;
+			break;
+		case Level::Info:
+			return Color::highIntensity_green;
+			break;
+		case Level::Warning:
+			return Color::boldHighIntensity_yellow;
+			break;
+		case Level::Error:
+			return Color::highIntensity_red;
+			break;
+		case Level::Critical:
+			return Color::underline_red;
+			break;
+		default:
+			break;
+		}
+
+		return Color::reset;
+	}
+
+	std::string getSimpleFunctionName(std::string_view name)
+	{
+		size_t paramStart = name.find_first_of('(');
+		size_t nameStart = name.rfind(' ', paramStart);
+		if (paramStart != std::string::npos && nameStart != std::string::npos && nameStart < paramStart && name.size() > 1)
+		{
+			return std::string(name.substr(nameStart + 1, paramStart - nameStart - 1));
+		}
+
+		return "";
+	}
+
+	LoggerBase::LoggerBase(Level level, const std::source_location& location)
+		: m_level(level)
+		, m_location(location)
+	{
+	}
+
+	LoggerBase::~LoggerBase() = default;
+
+	void LoggerBase::logInternal(std::string_view message)
+	{
+		if (std::ostream* streamPtr = g_logManager.stream())
+		{
+			std::ostream& stream = *streamPtr;
+
+			if (g_logManager.getOpts().printColor)
+				stream << getColorStr(getColorForLevel(m_level));
+
+			stream
+				<< "[" << getStringForLevel(m_level) << "]";
+
+			if (g_logManager.getOpts().printColor)
+				stream << getColorStr(Color::reset);
+
+			stream << " " << message;
+
+			if (g_logManager.getOpts().printLocationInfo)
+			{
+				if (g_logManager.getOpts().printColor)
+					stream << getColorStr(Color::highIntensity_black);
+
+				stream
+					<< " --- ";
+				if (g_logManager.getOpts().logFullFunctionName)
+					stream << m_location.function_name();
+				else
+					stream << getSimpleFunctionName(m_location.function_name());
+				stream
+					<< " ("
+					<< m_location.file_name() << ":"
+					<< m_location.line() << ","
+					<< m_location.column() << ")"
+					;
+
+				if (g_logManager.getOpts().printColor)
+					stream << getColorStr(Color::reset);
+			}
+
+			stream << "\n";
+		}
+		else
+		{
+			assert(false && "Stream is nullptr! Was Log::initLogging called?");
+		}
+	}
+
+	void initLogging(std::ostream& stream, const LogInitOptions& opts)
+	{
+		if (g_logManager.initialized())
+		{
+			Warn().log("Log already initialized; Ignoring additional call to initLogging!");
+		}
+		else
+		{
+			g_logManager = LogManager(stream, opts);
+
+			if (g_logManager.getOpts().reportLogInitialized)
+			{
+				Info().log("Logging initialized!");
+			}
+		}
+	}
+}
