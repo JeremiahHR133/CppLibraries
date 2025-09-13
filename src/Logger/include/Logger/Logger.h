@@ -132,6 +132,7 @@ namespace Log
 	// Intended usage example:
 	//    Log::Debug().log("Example debug message with a value: {:.3f}", 1.0f);
 	//    Log::Info().log("Log 1").log("Log 2");
+	//    Log::Info(1).log("This message is indented 1 level");
 	class LOGGER_EXPORT LoggerBase
 	{
 	public:
