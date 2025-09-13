@@ -185,19 +185,19 @@ namespace Log
 		switch (level)
 		{
 		case Level::Debug:
-			return Color::highIntensity_white;
+			return g_logManager.getOpts().colorSettings.debug;
 			break;
 		case Level::Info:
-			return Color::highIntensity_green;
+			return g_logManager.getOpts().colorSettings.info;
 			break;
 		case Level::Warning:
-			return Color::boldHighIntensity_yellow;
+			return g_logManager.getOpts().colorSettings.warn;
 			break;
 		case Level::Error:
-			return Color::highIntensity_red;
+			return g_logManager.getOpts().colorSettings.error;
 			break;
 		case Level::Critical:
-			return Color::underline_red;
+			return g_logManager.getOpts().colorSettings.critical;
 			break;
 		default:
 			break;

@@ -107,6 +107,16 @@ namespace Log
 		bool reportLogInitialized = true;
 		bool logFullFunctionName = false;
 		std::string indentationLevel = "   ";
+
+		struct ColorSettings
+		{
+			Color debug = Color::highIntensity_white;
+			Color info = Color::highIntensity_green;
+			Color warn = Color::highIntensity_yellow;
+			Color error = Color::highIntensity_red;
+			Color critical = Color::underline_red;
+		}
+		colorSettings;
 	};
 
 	// Returns a map of <color enum, string holding color escape code>
