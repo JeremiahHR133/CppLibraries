@@ -11,7 +11,6 @@
 
 // Simple logging library
 // Logs to any std::ostream (provided at initialization)
-// Currently does not support multithreaded environments
 namespace Log
 {
 	// All ANSI color codes
@@ -158,7 +157,7 @@ namespace Log
 		template<class... Args>
 		LoggerBase& log(std::format_string<Args...> fmt, Args&&... args)
 		{
-			std::stringstream stream;
+			std::ostringstream stream;
 			std::print(stream, fmt, std::forward<Args>(args)...);
 			logInternal(stream.view());
 			return *this;

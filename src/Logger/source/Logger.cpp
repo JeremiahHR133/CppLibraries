@@ -1,6 +1,7 @@
 #include <Logger/Logger.h>
 
 #include <assert.h>
+#include <mutex>
 
 namespace
 {
@@ -56,6 +57,8 @@ namespace
 	}
 
 	LogManager g_logManager;
+	std::mutex g_logMutex;
+
 	const std::unordered_map<Log::Color, std::string> g_colorMap =
 	{
 		{Log::Color::reset, "\033[0m"},
@@ -237,37 +240,34 @@ namespace Log
 			return;
 		}
 
-		std::ostream& stream = (m_level == Level::Error || m_level == Level::Critical)
-			? *errStreamPtr
-			: *stdStreamPtr;
+		std::ostringstream tmpBuff;
 
 		if (g_logManager.getOpts().printColor)
-			stream << getColorStr(getColorForLevel(m_level));
+			tmpBuff << getColorStr(getColorForLevel(m_level));
 
-		stream << "[" << getStringForLevel(m_level) << "]";
+		tmpBuff << "[" << getStringForLevel(m_level) << "]";
 
 		for (int i = 0; i < m_indentation; i++)
 		{
-			stream << g_logManager.getOpts().indentationLevel;
+			tmpBuff << g_logManager.getOpts().indentationLevel;
 		}
 
 		if (g_logManager.getOpts().printColor)
-			stream << getColorStr(Color::reset);
+			tmpBuff << getColorStr(Color::reset);
 
-		stream << " " << message;
+		tmpBuff << " " << message;
 
 		if (g_logManager.getOpts().printLocationInfo)
 		{
 			if (g_logManager.getOpts().printColor)
-				stream << getColorStr(Color::highIntensity_black);
+				tmpBuff << getColorStr(Color::highIntensity_black);
 
-			stream
-				<< " --- ";
+			tmpBuff << " --- ";
 			if (g_logManager.getOpts().logFullFunctionName)
-				stream << m_location.function_name();
+				tmpBuff << m_location.function_name();
 			else
-				stream << getSimpleFunctionName(m_location.function_name());
-			stream
+				tmpBuff << getSimpleFunctionName(m_location.function_name());
+			tmpBuff
 				<< " ("
 				<< m_location.file_name() << ":"
 				<< m_location.line() << ","
@@ -275,10 +275,18 @@ namespace Log
 				;
 
 			if (g_logManager.getOpts().printColor)
-				stream << getColorStr(Color::reset);
+				tmpBuff << getColorStr(Color::reset);
 		}
 
-		stream << "\n";
+		tmpBuff << "\n";
+
+		std::ostream& stream = (m_level == Level::Error || m_level == Level::Critical)
+			? *errStreamPtr
+			: *stdStreamPtr;
+		{
+			std::lock_guard<std::mutex> guard(g_logMutex);
+			stream << tmpBuff.view();
+		}
 	}
 
 	void initLogging(std::ostream& stream, const LogInitOptions& opts)
