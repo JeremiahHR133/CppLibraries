@@ -109,13 +109,24 @@ namespace Log
 
 		struct ColorSettings
 		{
-			Color debug = Color::highIntensity_white;
-			Color info = Color::highIntensity_green;
-			Color warn = Color::highIntensity_yellow;
-			Color error = Color::highIntensity_red;
+			Color debug    = Color::highIntensity_white;
+			Color info     = Color::highIntensity_green;
+			Color warn     = Color::highIntensity_yellow;
+			Color error    = Color::highIntensity_red;
 			Color critical = Color::underline_red;
+
+			Color functionInfo = Color::highIntensity_black;
+			Color timeInfo     = Color::highIntensity_black;
 		}
 		colorSettings;
+
+		enum class TimeMode
+		{
+			None,     // Don't print any timing information
+			Relative, // Print the time since initLogging was called
+			Absolute, // Print the current date time
+		}
+		timeMode = TimeMode::Relative;
 	};
 
 	// Returns a map of <color enum, string holding color escape code>

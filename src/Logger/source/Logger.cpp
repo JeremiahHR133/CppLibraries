@@ -2,6 +2,8 @@
 
 #include <assert.h>
 #include <mutex>
+#include <chrono>
+#include <format>
 
 namespace
 {
@@ -16,12 +18,14 @@ namespace
 		std::ostream* primaryStream() const;
 		std::ostream* errorStream() const;
 		const Log::LogInitOptions& getOpts() const;
+		const std::chrono::steady_clock::time_point& getInitTime() const;
 
 	private:
 		std::ostream* m_primaryStream;
 		std::ostream* m_errorStream;
 		bool m_initialized;
 		Log::LogInitOptions m_opts;
+		std::chrono::steady_clock::time_point m_initTime;
 	};
 	LogManager::LogManager()
 		: m_primaryStream(nullptr)
@@ -35,6 +39,7 @@ namespace
 		, m_initialized(true)
 		, m_opts(opts)
 	{
+		m_initTime = std::chrono::steady_clock::now();
 	}
 	LogManager::~LogManager() = default;
 
@@ -54,6 +59,11 @@ namespace
 	const Log::LogInitOptions& LogManager::getOpts() const
 	{
 		return m_opts;
+	}
+
+	const std::chrono::steady_clock::time_point& LogManager::getInitTime() const
+	{
+		return m_initTime;
 	}
 
 	LogManager g_logManager;
@@ -242,6 +252,34 @@ namespace Log
 
 		std::ostringstream tmpBuff;
 
+		if (g_logManager.getOpts().timeMode != LogInitOptions::TimeMode::None)
+		{
+			if (g_logManager.getOpts().printColor)
+				tmpBuff << getColorStr(g_logManager.getOpts().colorSettings.timeInfo);
+
+			tmpBuff << "[";
+
+			if (g_logManager.getOpts().timeMode == LogInitOptions::TimeMode::Absolute)
+			{
+				auto now = std::chrono::system_clock::now();
+				std::chrono::zoned_time localTime{std::chrono::current_zone(), now};
+				tmpBuff << std::format("{:%F %T}", localTime);
+			}
+			else if (g_logManager.getOpts().timeMode == LogInitOptions::TimeMode::Relative)
+			{
+				auto ellapsedTime = std::chrono::steady_clock::now() - g_logManager.getInitTime();
+				// TODO: Put padding here
+				tmpBuff << std::format("{}", ellapsedTime);
+			}
+
+			tmpBuff << "]";
+
+			if (g_logManager.getOpts().printColor)
+				tmpBuff << getColorStr(Color::reset);
+
+			tmpBuff << " ";
+		}
+
 		if (g_logManager.getOpts().printColor)
 			tmpBuff << getColorStr(getColorForLevel(m_level));
 
@@ -260,7 +298,7 @@ namespace Log
 		if (g_logManager.getOpts().printLocationInfo)
 		{
 			if (g_logManager.getOpts().printColor)
-				tmpBuff << getColorStr(Color::highIntensity_black);
+				tmpBuff << getColorStr(g_logManager.getOpts().colorSettings.functionInfo);
 
 			tmpBuff << " --- ";
 			if (g_logManager.getOpts().logFullFunctionName)
