@@ -1,10 +1,12 @@
 #include <Logger/Logger.h>
+#include <Converter/Converter.h>
 
 #include <iostream>
 
 int main()
 {
 	Log::initLogging(std::cout, std::cerr);
+	Converter::initializeConverters();
 
 	Log::Debug().log("Debug log {}", "example!");
 	Log::Info().log("Info log {}", "example!");
