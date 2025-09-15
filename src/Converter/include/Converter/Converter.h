@@ -61,8 +61,8 @@ namespace Converter
 				{
 					.name    = name,
 					.index   = std::type_index(typeid(T)),
-					.toStr   = [&toString](const std::any& val) -> std::string { return toString(std::any_cast<T>(val)); },
-					.fromStr = [&fromString](const std::string& val) -> std::any { return std::any(fromString(val));  },
+					.toStr   = [toString](const std::any& val) -> std::string { return toString(std::any_cast<T>(val)); },
+					.fromStr = [fromString](const std::string& val) -> std::any { return std::any(fromString(val));  },
 				}
 			);
 		}
