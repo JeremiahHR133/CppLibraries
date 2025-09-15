@@ -263,13 +263,13 @@ namespace Log
 			{
 				auto now = std::chrono::system_clock::now();
 				std::chrono::zoned_time localTime{std::chrono::current_zone(), now};
+				// I get an intellisense error on this line lol
 				tmpBuff << std::format("{:%F %T}", localTime);
 			}
 			else if (g_logManager.getOpts().timeMode == LogInitOptions::TimeMode::Relative)
 			{
 				auto ellapsedTime = std::chrono::steady_clock::now() - g_logManager.getInitTime();
-				// TODO: Put padding here
-				tmpBuff << std::format("{}", ellapsedTime);
+				tmpBuff << std::format("{:%T}", ellapsedTime);
 			}
 
 			tmpBuff << "]";
