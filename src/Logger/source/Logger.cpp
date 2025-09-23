@@ -4,6 +4,7 @@
 #include <mutex>
 #include <chrono>
 #include <format>
+#include <filesystem>
 
 namespace
 {
@@ -305,9 +306,16 @@ namespace Log
 				tmpBuff << m_location.function_name();
 			else
 				tmpBuff << getSimpleFunctionName(m_location.function_name());
+
+			tmpBuff << " (";
+
+			if (g_logManager.getOpts().logFullFilePath)
+				tmpBuff << m_location.file_name();
+			else
+				tmpBuff << std::filesystem::path(m_location.file_name()).filename().string(); // .string() here to remove quotes from path
+
 			tmpBuff
-				<< " ("
-				<< m_location.file_name() << ":"
+				<< ":"
 				<< m_location.line() << ","
 				<< m_location.column() << ")"
 				;

@@ -105,6 +105,7 @@ namespace Log
 		bool printLocationInfo = true;
 		bool reportLogInitialized = true;
 		bool logFullFunctionName = false;
+		bool logFullFilePath = false;
 		std::string indentationLevel = "   ";
 
 		struct ColorSettings
