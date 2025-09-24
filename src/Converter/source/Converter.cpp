@@ -82,14 +82,14 @@ namespace Converter
 		g_convertersRegistered = true;
 	}
 
-	std::string getStringFromAny(std::string_view typeName, const std::any val)
+	std::string getStringFromAny(const std::type_index& index, const std::any val)
 	{
 		auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
-			[typeName](const ConverterInfo& comp) { return typeName == comp.name; }
+			[&index](const ConverterInfo& comp) { return index == comp.index; }
 		);
 		if (findConverter == Impl::getRegisteredConverters().end())
 		{
-			Log::Error().log("Unable to convert to string! Converter not registered for type: {}!", typeName);
+			Log::Error().log("Unable to convert to string! Converter not registered for type: {}!", index.name());
 		}
 		else
 		{

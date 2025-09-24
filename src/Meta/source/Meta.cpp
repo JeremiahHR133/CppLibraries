@@ -1,7 +1,5 @@
 #include <Meta/Meta.h>
 
-#include <Converter/Converter.h>
-
 #include <mutex>
 
 namespace
@@ -65,6 +63,15 @@ namespace Meta
 		}
 	}
 
+	const ClassMetaBase* getClassMeta(const std::type_index& index)
+	{
+		for (auto* c : getGlobalMeta().getAllClasses())
+			if (c->getTypeIndex() == index)
+				return c;
+
+		return nullptr;
+	}
+
 	namespace Impl
 	{
 		void addClass(ClassMetaBase* c)
@@ -76,41 +83,6 @@ namespace Meta
 		{
 			std::lock_guard<std::mutex> lock(g_metaVecMutex);
 			g_globalMetaCallback.push_back(call);
-		}
-	}
-	class ExampleStruct
-	{
-		DECLARE_META_OBJECT(ExampleStruct)
-	public:
-		ExampleStruct()
-			: one(0)
-			, two(false)
-		{
-		}
-		ExampleStruct(int i, bool b)
-			: one(i)
-			, two(b)
-		{
-		}
-	private:
-		int one;
-		bool two;
-	};
-
-	IMPLEMENT_META_OBJECT(ExampleStruct)
-	{
-		w.addProperty(new MemberProperty<ExampleStruct, int>{ "one", &ExampleStruct::one, "int" });
-		w.addProperty(new MemberProperty<ExampleStruct, bool>{ "two", &ExampleStruct::two, "bool" });
-	}
-
-	void runTests()
-	{
-		ExampleStruct obj{1, false};
-
-		auto* objMeta = getGlobalMeta().getAllClasses()[0];
-		for (const auto& prop : objMeta->props)
-		{
-			Log::Info().log("Property: Name = {}, Value = {}", prop->name, Converter::getStringFromAny(prop->getTypeName(), prop->getAsAny(&obj)));
 		}
 	}
 }

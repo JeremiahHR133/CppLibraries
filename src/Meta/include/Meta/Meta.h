@@ -8,18 +8,25 @@
 #include <assert.h>
 #include <functional>
 #include <type_traits>
+#include <typeindex>
 
 #include <Logger/Logger.h>
 
+// TODO: Document with comments
+// TODO: Add accessors for getting class meta by string name
+// TODO: Add accessors for getting props by name
+
 #define DECLARE_META_OBJECT(classname) \
 	private: \
-		friend Impl::MetaInitializer<classname>; \
-		static Impl::MetaInitializer<classname> s_metaInit; \
-		static void initMeta(Impl::MetaInitializer<classname>& w); \
+		friend Meta::Impl::MetaInitializer<classname>; \
+		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
+		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
 
 #define IMPLEMENT_META_OBJECT(classname) \
-	Impl::MetaInitializer<classname> classname::s_metaInit = Impl::MetaInitializer<classname>(#classname); \
-	void classname::initMeta(Impl::MetaInitializer<classname>& w)
+	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname); \
+	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
+
+//#define META_PROPERTY_CREATE()
 
 namespace Meta
 {
@@ -33,10 +40,10 @@ namespace Meta
 		}
 		virtual ~MemberPropertyBase() = default;
 
-		virtual std::any createDefaultAsAny() = 0;
-		virtual std::any getAsAny(void* obj) = 0;
+		virtual std::any createDefaultAsAny() const = 0;
+		virtual std::any getAsAny(void* obj) const = 0;
 		virtual void setFromAny(void* obj, const std::any& val) = 0;
-		virtual std::string_view getTypeName() = 0;
+		virtual std::type_index getTypeIndex() const = 0;
 	};
 
 	template<class C, typename T>
@@ -45,22 +52,20 @@ namespace Meta
 		using ClassType = C;
 		using MemberType = T;
 
-		MemberProperty(std::string_view name, MemberType ClassType::* ptr, std::string_view tName)
+		MemberProperty(std::string_view name, MemberType ClassType::* ptr)
 			: MemberPropertyBase(name)
 			, member(ptr)
-			, typeName(tName)
 		{
 		}
 
 		MemberType ClassType::*member;
-		std::string_view typeName;
 
-		std::any createDefaultAsAny() { return std::any(MemberType()); };
-		const MemberType& get(const ClassType& obj) { return obj.*member; };
+		std::any createDefaultAsAny() const { return std::any(MemberType()); };
+		const MemberType& get(const ClassType& obj) const { return obj.*member; };
 		void set(ClassType& obj, const MemberType& val) { obj.*member = val; };
-		std::string_view getTypeName() { return typeName; };
+		std::type_index getTypeIndex() const { return std::type_index(typeid(MemberType)); };
 
-		virtual std::any getAsAny(void* obj)
+		virtual std::any getAsAny(void* obj) const
 		{
 			return std::any(get(*(static_cast<ClassType*>(obj))));
 		}
@@ -74,15 +79,18 @@ namespace Meta
 	struct ClassMetaBase
 	{
 		std::string_view name;
+		// TODO: Props should not be exposed like this.
+		// These pointers can be modified an that is no bueno
 		std::vector<MemberPropertyBase*> props;
 
-		ClassMetaBase(std::string_view name, const std::vector<MemberPropertyBase*> props)
+		ClassMetaBase(std::string_view name)
 			: name(name)
-			, props(props)
+			, props{}
 		{
 		}
 
-		virtual std::any createDefaultAsAny() = 0;
+		virtual std::any createDefaultAsAny() const = 0;
+		virtual std::type_index getTypeIndex() const = 0;
 	};
 
 	template<class C>
@@ -90,23 +98,24 @@ namespace Meta
 	{
 		using ClassType = C;
 
-		ClassMeta(std::string_view name, const std::vector<MemberPropertyBase*> props)
-			: ClassMetaBase(name, props)
-		{
-		}
-
 		ClassMeta(std::string_view name)
-			: ClassMetaBase(name, {})
+			: ClassMetaBase(name)
 		{
 		}
 
-		std::any createDefaultAsAny()
+		std::any createDefaultAsAny() const
 		{
 			return std::any(ClassType());
+		}
+
+		std::type_index getTypeIndex() const
+		{
+			return std::type_index(typeid(ClassType));
 		}
 	};
 
 	META_EXPORT void initializeMetaInfo();
+	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
 
 	namespace Impl
 	{
@@ -131,14 +140,11 @@ namespace Meta
 			}
 			~MetaInitializer() = default;
 
-			void addProperty(MemberPropertyBase* prop)
+			template<auto member>
+			void addProperty(std::string_view name)
 			{
-				if (!prop)
-				{
-					assert(false && "Prop was nullptr");
-					Log::Error().log("Failed to add nullptr prop!");
-				}
-
+				using V = std::remove_cvref_t<decltype(std::declval<T>().*member)>;
+				Meta::MemberPropertyBase* prop = new MemberProperty<T, V>{ name, member };
 				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const Meta::MemberPropertyBase* comp) {return comp->name == prop->name; });
 				if (foundProp == m_classPtr->props.end())
 				{
@@ -156,6 +162,4 @@ namespace Meta
 			ClassMetaBase* m_classPtr;
 		};
 	}
-
-	META_EXPORT void runTests();
 }

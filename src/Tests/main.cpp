@@ -6,7 +6,30 @@
 
 
 
+class ExampleStruct
+{
+	DECLARE_META_OBJECT(ExampleStruct)
+public:
+	ExampleStruct()
+		: one(0)
+		, two(false)
+	{
+	}
+	ExampleStruct(int i, bool b)
+		: one(i)
+		, two(b)
+	{
+	}
+private:
+	int one;
+	bool two;
+};
 
+IMPLEMENT_META_OBJECT(ExampleStruct)
+{
+	w.addProperty<&ExampleStruct::one>("one");
+	w.addProperty<&ExampleStruct::two>("two");
+}
 
 int main()
 {
@@ -26,5 +49,13 @@ int main()
 	Log::Info(1).log("Test of indentation!");
 	Log::Info(2).log("Test of indentation!");
 
-	Meta::runTests();
+	ExampleStruct obj{1, false};
+	auto* objMeta = Meta::getClassMeta(std::type_index(typeid(ExampleStruct)));
+	if (objMeta)
+	{
+		for (const auto& prop : objMeta->props)
+		{
+			Log::Info().log("Property: Name = {}, Value = {}", prop->name, Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(&obj)));
+		}
+	}
 }

@@ -12,6 +12,9 @@
 #include <vector>
 #include <assert.h>
 
+// TODO: Make a more generic way to get strings from types.
+//       These functions need a common back end because they all do really similar stuff
+
 // Register a global converter for a type
 // A converter is a binding of a classname -> <toStringFunc, fromStringFunc>
 // Registering a type as a converter makes it available for the 
@@ -74,7 +77,7 @@ namespace Converter
 		);
 		if (findConverter == Impl::getRegisteredConverters().end())
 		{
-			Log::Error().log("Unable to convert to string! Converter not registered for type!");
+			Log::Error().log("Unable to convert to string! Converter not registered for type: {}!", std::type_index(typeid(T)).name());
 		}
 		else
 		{
@@ -101,7 +104,7 @@ namespace Converter
 		);
 		if (findConverter == Impl::getRegisteredConverters().end())
 		{
-			Log::Error().log("Unable to convert from string! Converter not registered for type!");
+			Log::Error().log("Unable to convert from string! Converter not registered for type: {}!", std::type_index(typeid(T)).name());
 		}
 		else
 		{
@@ -120,5 +123,5 @@ namespace Converter
 	}
 
 	// Use a name lookup to convert val into a string using a registered converter
-	CONVERTER_EXPORT std::string getStringFromAny(std::string_view typeName, const std::any val);
+	CONVERTER_EXPORT std::string getStringFromAny(const std::type_index& index, const std::any val);
 }
