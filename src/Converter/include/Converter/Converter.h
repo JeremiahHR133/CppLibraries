@@ -8,25 +8,17 @@
 #include <functional>
 #include <any>
 #include <string>
+#include <string_view>
 #include <vector>
+#include <assert.h>
 
 // Register a global converter for a type
 // A converter is a binding of a classname -> <toStringFunc, fromStringFunc>
 // Registering a type as a converter makes it available for the 
 // getStringForType and getTypeFromString functions
-// Only call this macro once per type. This is compile time enforced.
+// Only call this macro once per type.
 #define REGISTER_CONVERTER(classname, toStringFunc, fromStringFunc) \
-	namespace Converter::Impl::Type_ ## classname \
-	{ \
-	struct ConverterRegister \
-	{ \
-		ConverterRegister() \
-		{ \
-			Converter::Impl::registerConverter<classname>(#classname, toStringFunc, fromStringFunc); \
-		} \
-	}; \
-	static const ConverterRegister _r; \
-	} \
+	Converter::Impl::registerConverter<classname>(#classname, toStringFunc, fromStringFunc);
 
 // Library to convert from any registered type to a string and vice versa
 // See the REGISTER_CONVERTER macro for how to register a type
@@ -40,7 +32,7 @@ namespace Converter
 
 	struct CONVERTER_EXPORT ConverterInfo
 	{
-		const char* name;
+		std::string_view name;
 		std::type_index index;
 		ToStringFunc<std::any> toStr;
 		FromStringFunc<std::any> fromStr;
@@ -54,7 +46,7 @@ namespace Converter
 		CONVERTER_EXPORT const std::vector<ConverterInfo>& getRegisteredConverters();
 
 		template<typename T>
-		void registerConverter(const char* name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
+		void registerConverter(std::string_view name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
 		{
 			Impl::addConverter(
 				ConverterInfo
@@ -86,7 +78,15 @@ namespace Converter
 		}
 		else
 		{
-			return findConverter->toStr(std::any(val));
+			try
+			{
+				return findConverter->toStr(std::any(val));
+			}
+			catch (const std::bad_any_cast& e)
+			{
+				assert(false && "Caught bad any cast!");
+				Log::Error().log("Unable to convert to string! toStr failed! Attempted to use converter with name: {}", findConverter->name);
+			}
 		}
 
 		return "";
@@ -105,35 +105,20 @@ namespace Converter
 		}
 		else
 		{
-			return std::any_cast<T>(findConverter->fromStr(str));
+			try
+			{
+				return std::any_cast<T>(findConverter->fromStr(str));
+			}
+			catch (const std::bad_any_cast& e)
+			{
+				assert(false && "Caught bad any cast!");
+				Log::Error().log("Unable to convert string to type; fromStr failed! Attempted to use converter with name: {}", findConverter->name);
+			}
 		}
 
 		return T();
 	}
-}
 
-REGISTER_CONVERTER(
-	int, 
-	[](const int& i) { return std::to_string(i); },
-	[](const std::string& str) { return std::stoi(str); }
-)
-REGISTER_CONVERTER(
-	float, 
-	[](const float& f) { return std::to_string(f); },
-	[](const std::string& str) { return std::stof(str); }
-)
-REGISTER_CONVERTER(
-	double, 
-	[](const double& d) { return std::to_string(d); },
-	[](const std::string& str) { return std::stod(str); }
-)
-REGISTER_CONVERTER(
-	bool, 
-	[](const bool& b) { return std::to_string(b); },
-	[](const std::string& str) { return static_cast<bool>(std::stoi(str)); }
-)
-REGISTER_CONVERTER(
-	std::string, 
-	[](const std::string& str) { return str; },
-	[](const std::string& str) { return str; }
-)
+	// Use a name lookup to convert val into a string using a registered converter
+	CONVERTER_EXPORT std::string getStringFromAny(std::string_view typeName, const std::any val);
+}

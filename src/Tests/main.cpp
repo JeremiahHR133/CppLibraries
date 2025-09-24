@@ -1,12 +1,18 @@
 #include <Logger/Logger.h>
 #include <Converter/Converter.h>
+#include <Meta/Meta.h>
 
 #include <iostream>
+
+
+
+
 
 int main()
 {
 	Log::initLogging(std::cout, std::cerr);
 	Converter::initializeConverters();
+	Meta::initializeMetaInfo();
 
 	Log::Debug().log("Debug log {}", "example!");
 	Log::Info().log("Info log {}", "example!");
@@ -19,4 +25,6 @@ int main()
 	Log::Info().log("Test of indentation!");
 	Log::Info(1).log("Test of indentation!");
 	Log::Info(2).log("Test of indentation!");
+
+	Meta::runTests();
 }
