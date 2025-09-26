@@ -8,12 +8,8 @@
 #include <functional>
 #include <any>
 #include <string>
-#include <string_view>
 #include <vector>
 #include <assert.h>
-
-// TODO: Make a more generic way to get strings from types.
-//       These functions need a common back end because they all do really similar stuff
 
 // Register a global converter for a type
 // A converter is a binding of a classname -> <toStringFunc, fromStringFunc>
@@ -35,7 +31,7 @@ namespace Converter
 
 	struct CONVERTER_EXPORT ConverterInfo
 	{
-		std::string_view name;
+		std::string name;
 		std::type_index index;
 		ToStringFunc<std::any> toStr;
 		FromStringFunc<std::any> fromStr;
@@ -48,8 +44,14 @@ namespace Converter
 		CONVERTER_EXPORT void addConverter(const ConverterInfo& info);
 		CONVERTER_EXPORT const std::vector<ConverterInfo>& getRegisteredConverters();
 
+		CONVERTER_EXPORT std::string getStrUsingConverter(const ConverterInfo& converter, const std::any& val);
+		CONVERTER_EXPORT std::any getAnyUsingConverter(const ConverterInfo& converter, const std::string& val);
+
+		CONVERTER_EXPORT const ConverterInfo* findConverter(const std::string& name);
+		CONVERTER_EXPORT const ConverterInfo* findConverter(const std::type_index& index);
+
 		template<typename T>
-		void registerConverter(std::string_view name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
+		void registerConverter(const std::string& name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
 		{
 			Impl::addConverter(
 				ConverterInfo
@@ -72,25 +74,8 @@ namespace Converter
 	template<typename T>
 	std::string getStringForType(const T& val)
 	{
-		auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
-			[](const ConverterInfo& comp) { return std::type_index(typeid(T)) == comp.index; }
-		);
-		if (findConverter == Impl::getRegisteredConverters().end())
-		{
-			Log::Error().log("Unable to convert to string! Converter not registered for type: {}!", std::type_index(typeid(T)).name());
-		}
-		else
-		{
-			try
-			{
-				return findConverter->toStr(std::any(val));
-			}
-			catch (const std::bad_any_cast& e)
-			{
-				assert(false && "Caught bad any cast!");
-				Log::Error().log("Unable to convert to string! toStr failed! Attempted to use converter with name: {}", findConverter->name);
-			}
-		}
+		if (auto* converter = Impl::findConverter(std::type_index(typeid(T))))
+			return Impl::getStrUsingConverter(*converter, std::any(val));
 
 		return "";
 	}
@@ -99,29 +84,28 @@ namespace Converter
 	template<typename T>
 	T getTypeFromString(const std::string& str)
 	{
-		auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
-			[](const ConverterInfo& comp) { return std::type_index(typeid(T)) == comp.index; }
-		);
-		if (findConverter == Impl::getRegisteredConverters().end())
-		{
-			Log::Error().log("Unable to convert from string! Converter not registered for type: {}!", std::type_index(typeid(T)).name());
-		}
-		else
+		if (auto* converter = Impl::findConverter(std::type_index(typeid(T))))
 		{
 			try
 			{
-				return std::any_cast<T>(findConverter->fromStr(str));
+				return std::any_cast<T>(Impl::getAnyUsingConverter(*converter, str));
 			}
 			catch (const std::bad_any_cast& e)
 			{
 				assert(false && "Caught bad any cast!");
-				Log::Error().log("Unable to convert string to type; fromStr failed! Attempted to use converter with name: {}", findConverter->name);
+				Log::Error().log(
+					"Unable to convert string to type; could not cast converter result to type: {}! "
+					"Attempted to use converter with name: {}",
+					std::type_index(typeid(T)), converter->name
+				);
 			}
 		}
 
 		return T();
 	}
 
-	// Use a name lookup to convert val into a string using a registered converter
+	// Use a type index to convert val into a string using a registered converter
 	CONVERTER_EXPORT std::string getStringFromAny(const std::type_index& index, const std::any val);
+	// Use a name lookup to convert val into a string using a registered converter
+	CONVERTER_EXPORT std::string getStringFromAny(const std::string& name, const std::any val);
 }

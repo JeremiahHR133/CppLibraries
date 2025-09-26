@@ -27,6 +27,86 @@ namespace Converter
 		{
 			return g_converters;
 		}
+
+		std::string getStrUsingConverter(const ConverterInfo& converter, const std::any& val)
+		{
+			try
+			{
+				return converter.toStr(val);
+			}
+			catch (const std::bad_any_cast& e)
+			{
+				assert(false && "Caught bad any cast!");
+				Log::Error().log("Unable to convert type to string; toStr failed! Attempted to use converter with name: {}", converter.name);
+			}
+			
+			return "";
+		}
+
+		std::any getAnyUsingConverter(const ConverterInfo& converter, const std::string& val)
+		{
+			try
+			{
+				return converter.fromStr(val);
+			}
+			catch (const std::bad_any_cast& e)
+			{
+				assert(false && "Caught bad any cast!");
+				Log::Error().log("Unable to convert string to type; fromStr failed! Attempted to use converter with name: {}", converter.name);
+			}
+
+			return std::any();
+		}
+
+		const ConverterInfo* findConverter(const std::string& name)
+		{
+			auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
+				[&name](const ConverterInfo& comp) { return name == comp.name; }
+			);
+			if (findConverter == Impl::getRegisteredConverters().end())
+			{
+				Log::Error().log("Unable to convert from string! Converter not found! Name: {}!", name);
+			}
+			else
+			{
+				return &(*findConverter);
+			}
+
+			return nullptr;
+		}
+
+		const ConverterInfo* findConverter(const std::type_index& index)
+		{
+			auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
+				[&index](const ConverterInfo& comp) { return index == comp.index; }
+			);
+			if (findConverter == Impl::getRegisteredConverters().end())
+			{
+				Log::Error().log("Unable to convert from string! Converter not found! Name: {}!", index.name());
+			}
+			else
+			{
+				return &(*findConverter);
+			}
+
+			return nullptr;
+		}
+	}
+
+	std::string getStringFromAny(const std::type_index& index, const std::any val)
+	{
+		if (auto* converter = Impl::findConverter(index))
+			return Impl::getStrUsingConverter(*converter, val);
+
+		return "";
+	}
+
+	std::string getStringFromAny(const std::string& name, const std::any val)
+	{
+		if (auto* converter = Impl::findConverter(name))
+			return Impl::getStrUsingConverter(*converter, val);
+
+		return "";
 	}
 
 	void initializeConverters()
@@ -80,30 +160,5 @@ namespace Converter
 		}
 
 		g_convertersRegistered = true;
-	}
-
-	std::string getStringFromAny(const std::type_index& index, const std::any val)
-	{
-		auto findConverter = std::find_if(Impl::getRegisteredConverters().begin(), Impl::getRegisteredConverters().end(),
-			[&index](const ConverterInfo& comp) { return index == comp.index; }
-		);
-		if (findConverter == Impl::getRegisteredConverters().end())
-		{
-			Log::Error().log("Unable to convert to string! Converter not registered for type: {}!", index.name());
-		}
-		else
-		{
-			try
-			{
-				return findConverter->toStr(val);
-			}
-			catch (const std::bad_any_cast& e)
-			{
-				assert(false && "Caught bad any cast!");
-				Log::Error().log("Unable to convert any to string! toStr failed! Attempted to use converter with name: {}", findConverter->name);
-			}
-		}
-
-		return "";
 	}
 }

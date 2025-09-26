@@ -21,15 +21,28 @@
 		friend Meta::Impl::MetaInitializer<classname>; \
 		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
 		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
+	public: \
+		std::type_index getTypeIndex() const override;
 
 #define IMPLEMENT_META_OBJECT(classname) \
+	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
+	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
 	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname); \
+	std::type_index classname::getTypeIndex() const { return std::type_index(typeid(classname)); } \
 	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
 
 //#define META_PROPERTY_CREATE()
 
 namespace Meta
 {
+	struct MetaObject
+	{
+		MetaObject() = default;
+		virtual ~MetaObject() = default;
+
+		virtual std::type_index getTypeIndex() const = 0;
+	};
+
 	struct MemberPropertyBase
 	{
 		std::string_view name;
@@ -41,10 +54,16 @@ namespace Meta
 		virtual ~MemberPropertyBase() = default;
 
 		virtual std::any createDefaultAsAny() const = 0;
-		virtual std::any getAsAny(void* obj) const = 0;
-		virtual void setFromAny(void* obj, const std::any& val) = 0;
+		virtual std::any getAsAny(const MetaObject& obj) const = 0;
+		virtual void setFromAny(MetaObject& obj, const std::any& val) const = 0;
 		virtual std::type_index getTypeIndex() const = 0;
 	};
+
+	namespace Impl
+	{
+		template<typename T>
+		class MetaInitializer;
+	}
 
 	template<class C, typename T>
 	struct MemberProperty : MemberPropertyBase
@@ -52,35 +71,63 @@ namespace Meta
 		using ClassType = C;
 		using MemberType = T;
 
+		friend Impl::MetaInitializer<C>;
+
+	private:
+		// Creation is limited to the initializer class
 		MemberProperty(std::string_view name, MemberType ClassType::* ptr)
 			: MemberPropertyBase(name)
 			, member(ptr)
 		{
 		}
-
 		MemberType ClassType::*member;
+
+	public:
 
 		std::any createDefaultAsAny() const { return std::any(MemberType()); };
 		const MemberType& get(const ClassType& obj) const { return obj.*member; };
-		void set(ClassType& obj, const MemberType& val) { obj.*member = val; };
+		void set(ClassType& obj, const MemberType& val) const { obj.*member = val; };
 		std::type_index getTypeIndex() const { return std::type_index(typeid(MemberType)); };
 
-		virtual std::any getAsAny(void* obj) const
+		virtual std::any getAsAny(const MetaObject& obj) const
 		{
-			return std::any(get(*(static_cast<ClassType*>(obj))));
+			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			{
+				return std::any(get(static_cast<const ClassType&>(obj)));
+			}
+			else
+			{
+				assert(false && "Property does not belong to given object!");
+				Log::Error().log("Failed to getAsAny for prop! Property does not belong to given object!");
+			}
+			return std::any();
 		}
 
-		virtual void setFromAny(void* obj, const std::any& val)
+		virtual void setFromAny(MetaObject& obj, const std::any& val) const
 		{
-			set(*(static_cast<ClassType*>(obj)), std::any_cast<MemberType>(val));
+			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			{
+				try
+				{
+					set(static_cast<ClassType&>(obj), std::any_cast<MemberType>(val));
+				}
+				catch (const std::bad_any_cast& e)
+				{
+					assert(false && "Attempted to set property with 'any' of wrong type!");
+					Log::Error().log("Failed to set property! Given 'any' is the wrong type!");
+				}
+			}
+			else
+			{
+				assert(false && "Property does not belong to given object!");
+				Log::Error().log("Failed to setFromAny for prop! Property does not belong to given object!");
+			}
 		}
 	};
 
 	struct ClassMetaBase
 	{
 		std::string_view name;
-		// TODO: Props should not be exposed like this.
-		// These pointers can be modified an that is no bueno
 		std::vector<MemberPropertyBase*> props;
 
 		ClassMetaBase(std::string_view name)
@@ -125,7 +172,6 @@ namespace Meta
 		template<typename T>
 		class MetaInitializer
 		{
-			static_assert(std::is_default_constructible_v<T>, "Class must be default constructible to use meta!");
 		public:
 			MetaInitializer(std::string_view name)
 				: m_classPtr(nullptr)

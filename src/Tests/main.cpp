@@ -6,7 +6,7 @@
 
 
 
-class ExampleStruct
+class ExampleStruct : public Meta::MetaObject
 {
 	DECLARE_META_OBJECT(ExampleStruct)
 public:
@@ -55,7 +55,7 @@ int main()
 	{
 		for (const auto& prop : objMeta->props)
 		{
-			Log::Info().log("Property: Name = {}, Value = {}", prop->name, Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(&obj)));
+			Log::Info().log("Property: Name = {}, Value = {}", prop->name, Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 		}
 	}
 }
