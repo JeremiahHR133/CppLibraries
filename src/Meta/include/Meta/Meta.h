@@ -13,8 +13,6 @@
 #include <Logger/Logger.h>
 
 // TODO: Document with comments
-// TODO: Add accessors for getting class meta by string name
-// TODO: Add accessors for getting props by name
 
 #define DECLARE_META_OBJECT(classname) \
 	private: \
@@ -35,18 +33,18 @@
 
 namespace Meta
 {
-	struct MetaObject
+	class MetaObject
 	{
+	public:
 		MetaObject() = default;
 		virtual ~MetaObject() = default;
 
 		virtual std::type_index getTypeIndex() const = 0;
 	};
 
-	struct MemberPropertyBase
+	class MemberPropertyBase
 	{
-		std::string name;
-
+	public:
 		MemberPropertyBase(const std::string& str)
 			: name(str)
 		{
@@ -57,6 +55,11 @@ namespace Meta
 		virtual std::any getAsAny(const MetaObject& obj) const = 0;
 		virtual void setFromAny(MetaObject& obj, const std::any& val) const = 0;
 		virtual std::type_index getTypeIndex() const = 0;
+
+		const std::string& getName() const { return name; }
+
+	private:
+		std::string name;
 	};
 
 	namespace Impl
@@ -66,14 +69,14 @@ namespace Meta
 	}
 
 	template<class C, typename T>
-	struct MemberProperty : MemberPropertyBase
+	class MemberProperty : public MemberPropertyBase
 	{
+
 		using ClassType = C;
 		using MemberType = T;
 
 		friend Impl::MetaInitializer<C>;
 
-	private:
 		// Creation is limited to the initializer class
 		MemberProperty(const std::string& name, MemberType ClassType::* ptr)
 			: MemberPropertyBase(name)
@@ -125,24 +128,34 @@ namespace Meta
 		}
 	};
 
-	struct ClassMetaBase
+	class META_EXPORT ClassMetaBase
 	{
-		std::string name;
-		std::vector<MemberPropertyBase*> props;
-
+	public:
 		ClassMetaBase(const std::string& name)
 			: name(name)
 			, props{}
 		{
 		}
+		virtual ~ClassMetaBase() = default;
 
 		virtual std::any createDefaultAsAny() const = 0;
 		virtual std::type_index getTypeIndex() const = 0;
+
+		const std::string& getName() const { return name; }
+		const std::vector<const MemberPropertyBase*> getProps() const { return props; }
+		const MemberPropertyBase* getProp(const std::string& name) const;
+
+	private:
+		std::string name;
+		std::vector<const MemberPropertyBase*> props;
+
+		template<typename T> friend class Impl::MetaInitializer;
 	};
 
 	template<class C>
-	struct ClassMeta : ClassMetaBase
+	class ClassMeta : public ClassMetaBase
 	{
+	public:
 		using ClassType = C;
 
 		ClassMeta(const std::string& name)
@@ -162,8 +175,15 @@ namespace Meta
 	};
 
 	META_EXPORT void initializeMetaInfo();
+
 	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
 	META_EXPORT const ClassMetaBase* getClassMeta(const std::string& name);
+
+	template<typename T>
+	const ClassMetaBase* getClassMeta()
+	{
+		return getClassMeta(std::type_index(typeid(T)));
+	}
 
 	namespace Impl
 	{
@@ -180,8 +200,14 @@ namespace Meta
 				addDelayInitialize([name, this]()
 					{
 						m_classPtr = new ClassMeta<T>(name);
-						addClass(m_classPtr);
-						T::initMeta(*this);
+						assert(m_classPtr);
+						if (m_classPtr)
+						{
+							addClass(m_classPtr);
+							T::initMeta(*this);
+						}
+						else
+							Log::Critical().log("Unable to allocate new ClassMeta!");
 					}
 				);
 			}
@@ -190,18 +216,20 @@ namespace Meta
 			template<auto member>
 			void addProperty(const std::string& name)
 			{
+				// TODO: This doesn't allow members to be: const, volatile, or references
+				// Determine if that is a valid restriction...
 				using V = std::remove_cvref_t<decltype(std::declval<T>().*member)>;
 				Meta::MemberPropertyBase* prop = new MemberProperty<T, V>{ name, member };
-				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const Meta::MemberPropertyBase* comp) {return comp->name == prop->name; });
+				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const Meta::MemberPropertyBase* comp) {return comp->getName() == prop->getName(); });
 				if (foundProp == m_classPtr->props.end())
 				{
-					Log::Debug().log("Registered new property: \"{}\" to class: \"{}\"", prop->name, m_classPtr->name);
+					Log::Debug().log("Registered new property: \"{}\" to class: \"{}\"", prop->getName(), m_classPtr->getName());
 					m_classPtr->props.push_back(prop);
 				}
 				else
 				{
 					assert(false && "Property already added for class");
-					Log::Error().log("Failed to add property! Property already exists: \"{}\"", prop->name);
+					Log::Error().log("Failed to add property! Property already exists: \"{}\"", prop->getName());
 				}
 			}
 

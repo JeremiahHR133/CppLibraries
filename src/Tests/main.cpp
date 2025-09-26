@@ -50,12 +50,21 @@ int main()
 	Log::Info(2).log("Test of indentation!");
 
 	ExampleStruct obj{1, false};
-	auto* objMeta = Meta::getClassMeta(std::type_index(typeid(ExampleStruct)));
+	auto* objMeta = Meta::getClassMeta<ExampleStruct>();
 	if (objMeta)
 	{
-		for (const auto& prop : objMeta->props)
+		for (const auto& prop : objMeta->getProps())
 		{
-			Log::Info().log("Property: Name = {}, Value = {}", prop->name, Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
+			Log::Info().log("Property: Name = {}, Value = {}", prop->getName(), Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 		}
+
+		auto* prop = objMeta->getProp("one");
+		if (prop)
+			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
+
+		prop = objMeta->getProp("doesn't exist");
+		if (prop)
+			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 	}
+
 }
