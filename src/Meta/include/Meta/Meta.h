@@ -33,6 +33,32 @@
 
 namespace Meta
 {
+	namespace Impl
+	{
+		template<typename T, typename C>
+		T member_value_deducer(T C::*);
+		template<auto MV>
+		using member_value_type_t = decltype(member_value_deducer(MV));
+
+		template<typename T, typename C, typename... Args>
+		T member_function_return_deducer(T (C::*)(Args...));
+		template<typename T, typename C, typename... Args>
+		T member_function_return_deducer(T (C::*)(Args...) const);
+		template<auto MV>
+		using member_function_return_type_t = decltype(member_function_return_deducer(MV));
+
+		template <typename T, typename C, typename func>
+		struct is_member_setter_function_pointer : std::false_type {};
+		template <typename T, typename C>
+		struct is_member_setter_function_pointer<T, C, void (C::*)(T)> : std::true_type {};
+
+		template <typename T, typename C, typename func>
+		struct is_member_getter_function_pointer : std::false_type {};
+		template <typename T, typename C>
+		struct is_member_getter_function_pointer<T, C, T (C::*)(void) const> : std::true_type {};
+
+	}
+
 	class MetaObject
 	{
 	public:
@@ -68,31 +94,22 @@ namespace Meta
 		class MetaInitializer;
 	}
 
-	template<class C, typename T>
-	class MemberProperty : public MemberPropertyBase
+	template<class ClassType, typename MemberType>
+	class TemplateMemberPropertyBase : public MemberPropertyBase
 	{
-
-		using ClassType = C;
-		using MemberType = T;
-
-		friend Impl::MetaInitializer<C>;
-
-		// Creation is limited to the initializer class
-		MemberProperty(const std::string& name, MemberType ClassType::* ptr)
+	public:
+		TemplateMemberPropertyBase(const std::string& name)
 			: MemberPropertyBase(name)
-			, member(ptr)
 		{
 		}
-		MemberType ClassType::*member;
 
-	public:
+		virtual MemberType get(const ClassType& obj) const = 0;
+		virtual void set(ClassType& obj, MemberType val) const = 0;
 
-		std::any createDefaultAsAny() const { return std::any(MemberType()); };
-		const MemberType& get(const ClassType& obj) const { return obj.*member; };
-		void set(ClassType& obj, const MemberType& val) const { obj.*member = val; };
-		std::type_index getTypeIndex() const { return std::type_index(typeid(MemberType)); };
+		std::any createDefaultAsAny() const override { return std::any(MemberType()); };
+		std::type_index getTypeIndex() const override { return std::type_index(typeid(MemberType)); };
 
-		virtual std::any getAsAny(const MetaObject& obj) const
+		std::any getAsAny(const MetaObject& obj) const override
 		{
 			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
 			{
@@ -106,7 +123,7 @@ namespace Meta
 			return std::any();
 		}
 
-		virtual void setFromAny(MetaObject& obj, const std::any& val) const
+		void setFromAny(MetaObject& obj, const std::any& val) const override
 		{
 			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
 			{
@@ -127,6 +144,49 @@ namespace Meta
 			}
 		}
 	};
+
+	template<class ClassType, typename MemberType>
+	class MemberProperty : public TemplateMemberPropertyBase<ClassType, MemberType>
+	{
+		friend Impl::MetaInitializer<ClassType>;
+
+		// Creation is limited to the initializer class
+		MemberProperty(const std::string& name, MemberType ClassType::* ptr)
+			: TemplateMemberPropertyBase<ClassType, MemberType>(name)
+			, member(ptr)
+		{
+		}
+
+		MemberType ClassType::*member;
+
+	public:
+
+		MemberType get(const ClassType& obj) const override { return obj.*member; };
+		void set(ClassType& obj, MemberType val) const override { obj.*member = val; };
+	};
+
+	template<class ClassType, typename MemberType>
+	class MemberPropertyFunctional : public TemplateMemberPropertyBase<ClassType, MemberType>
+	{
+		friend Impl::MetaInitializer<ClassType>;
+
+		// Creation is limited to the initializer class
+		MemberPropertyFunctional(const std::string& name, void (ClassType::*setter)(MemberType), MemberType (ClassType::*getter)(void) const)
+			: TemplateMemberPropertyBase<ClassType, MemberType>(name)
+			, setter(setter)
+			, getter(getter)
+		{
+		}
+
+		void (ClassType::* setter)(MemberType);
+		MemberType(ClassType::* getter)(void) const;
+
+	public:
+
+		MemberType get(const ClassType& obj) const override { return (obj.*getter)(); };
+		void set(ClassType& obj, MemberType val) const override { (obj.*setter)(val); };
+	};
+
 
 	class META_EXPORT ClassMetaBase
 	{
@@ -190,7 +250,7 @@ namespace Meta
 		META_EXPORT void addClass(ClassMetaBase* c);
 		META_EXPORT void addDelayInitialize(std::function<void()> call);
 
-		template<typename T>
+		template<typename ClassType>
 		class MetaInitializer
 		{
 		public:
@@ -199,12 +259,12 @@ namespace Meta
 			{
 				addDelayInitialize([name, this]()
 					{
-						m_classPtr = new ClassMeta<T>(name);
+						m_classPtr = new ClassMeta<ClassType>(name);
 						assert(m_classPtr);
 						if (m_classPtr)
 						{
 							addClass(m_classPtr);
-							T::initMeta(*this);
+							ClassType::initMeta(*this);
 						}
 						else
 							Log::Critical().log("Unable to allocate new ClassMeta!");
@@ -214,13 +274,38 @@ namespace Meta
 			~MetaInitializer() = default;
 
 			template<auto member>
+				requires std::is_member_object_pointer_v<decltype(member)>
 			void addProperty(const std::string& name)
 			{
-				// TODO: This doesn't allow members to be: const, volatile, or references
-				// Determine if that is a valid restriction...
-				using V = std::remove_cvref_t<decltype(std::declval<T>().*member)>;
-				Meta::MemberPropertyBase* prop = new MemberProperty<T, V>{ name, member };
-				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const Meta::MemberPropertyBase* comp) {return comp->getName() == prop->getName(); });
+				using V = member_value_type_t<member>;
+				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, member });
+			}
+
+			template<auto setter, auto getter>
+			requires std::is_member_function_pointer_v<decltype(setter)>
+				  && std::is_member_function_pointer_v<decltype(getter)>
+			void addProperty(const std::string& name)
+			{
+				// I find the static asserts provide better feedback on errors as opposed to just having these as a requires clause
+				static_assert(is_member_setter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(setter)>::value
+					, "Setter must match this signature where T matches the return type of the getter: void(T)");
+				static_assert(is_member_getter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(getter)>::value
+					, "Getter must match this signature where T matches the input type to the setter: T(void) const");
+				using V = std::remove_reference_t<std::remove_const_t<member_function_return_type_t<getter>>>;
+				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, setter, getter });
+			}
+
+		private:
+			void internalAddMemberProperty(MemberPropertyBase* prop)
+			{
+				assert(prop);
+				if (!prop)
+				{
+					Log::Critical().log("Unable to allocate memory for new property!");
+					return;
+				}
+
+				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const MemberPropertyBase* comp) {return comp->getName() == prop->getName(); });
 				if (foundProp == m_classPtr->props.end())
 				{
 					Log::Debug().log("Registered new property: \"{}\" to class: \"{}\"", prop->getName(), m_classPtr->getName());
@@ -233,7 +318,6 @@ namespace Meta
 				}
 			}
 
-		private:
 			ClassMetaBase* m_classPtr;
 		};
 	}

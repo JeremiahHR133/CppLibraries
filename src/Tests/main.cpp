@@ -13,22 +13,29 @@ public:
 	ExampleStruct()
 		: one(0)
 		, two(false)
+		, three(0)
 	{
 	}
-	ExampleStruct(int i, bool b)
+	ExampleStruct(int i, bool b, float f)
 		: one(i)
 		, two(b)
+		, three(f)
 	{
 	}
+
+	void setThree(float val) { three = val; }
+	float getThree() const { return three; }
 private:
 	int one;
 	bool two;
+	float three;
 };
 
 IMPLEMENT_META_OBJECT(ExampleStruct)
 {
 	w.addProperty<&ExampleStruct::one>("one");
 	w.addProperty<&ExampleStruct::two>("two");
+	w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
 }
 
 int main()
@@ -49,7 +56,7 @@ int main()
 	Log::Info(1).log("Test of indentation!");
 	Log::Info(2).log("Test of indentation!");
 
-	ExampleStruct obj{1, false};
+	ExampleStruct obj{1, false, 10.0f};
 	auto* objMeta = Meta::getClassMeta<ExampleStruct>();
 	if (objMeta)
 	{
