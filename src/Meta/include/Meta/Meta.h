@@ -45,9 +45,9 @@ namespace Meta
 
 	struct MemberPropertyBase
 	{
-		std::string_view name;
+		std::string name;
 
-		MemberPropertyBase(std::string_view str)
+		MemberPropertyBase(const std::string& str)
 			: name(str)
 		{
 		}
@@ -75,7 +75,7 @@ namespace Meta
 
 	private:
 		// Creation is limited to the initializer class
-		MemberProperty(std::string_view name, MemberType ClassType::* ptr)
+		MemberProperty(const std::string& name, MemberType ClassType::* ptr)
 			: MemberPropertyBase(name)
 			, member(ptr)
 		{
@@ -127,10 +127,10 @@ namespace Meta
 
 	struct ClassMetaBase
 	{
-		std::string_view name;
+		std::string name;
 		std::vector<MemberPropertyBase*> props;
 
-		ClassMetaBase(std::string_view name)
+		ClassMetaBase(const std::string& name)
 			: name(name)
 			, props{}
 		{
@@ -145,7 +145,7 @@ namespace Meta
 	{
 		using ClassType = C;
 
-		ClassMeta(std::string_view name)
+		ClassMeta(const std::string& name)
 			: ClassMetaBase(name)
 		{
 		}
@@ -163,6 +163,7 @@ namespace Meta
 
 	META_EXPORT void initializeMetaInfo();
 	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
+	META_EXPORT const ClassMetaBase* getClassMeta(const std::string& name);
 
 	namespace Impl
 	{
@@ -173,7 +174,7 @@ namespace Meta
 		class MetaInitializer
 		{
 		public:
-			MetaInitializer(std::string_view name)
+			MetaInitializer(const std::string& name)
 				: m_classPtr(nullptr)
 			{
 				addDelayInitialize([name, this]()
@@ -187,7 +188,7 @@ namespace Meta
 			~MetaInitializer() = default;
 
 			template<auto member>
-			void addProperty(std::string_view name)
+			void addProperty(const std::string& name)
 			{
 				using V = std::remove_cvref_t<decltype(std::declval<T>().*member)>;
 				Meta::MemberPropertyBase* prop = new MemberProperty<T, V>{ name, member };

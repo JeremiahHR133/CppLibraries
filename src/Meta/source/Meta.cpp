@@ -72,6 +72,15 @@ namespace Meta
 		return nullptr;
 	}
 
+	const ClassMetaBase* getClassMeta(const std::string& name)
+	{
+		for (auto* c : getGlobalMeta().getAllClasses())
+			if (c->name == name)
+				return c;
+
+		return nullptr;
+	}
+
 	namespace Impl
 	{
 		void addClass(ClassMetaBase* c)
