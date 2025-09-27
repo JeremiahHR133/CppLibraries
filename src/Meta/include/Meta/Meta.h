@@ -66,7 +66,7 @@ namespace Meta
 		{
 			using return_type = R;
 			using class_type = C;
-			template <template <typename One, typename Two, typename...> class Apply>
+			template <template <typename, typename, typename...> class Apply>
 			using apply_to = Apply<C, R, Args...>;
 		};
 
