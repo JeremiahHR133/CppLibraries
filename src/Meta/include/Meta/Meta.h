@@ -9,6 +9,7 @@
 #include <functional>
 #include <type_traits>
 #include <typeindex>
+#include <tuple>
 
 #include <Logger/Logger.h>
 
@@ -47,6 +48,28 @@ namespace Meta
 		template<auto MV>
 		using member_function_return_type_t = decltype(member_function_return_deducer(MV));
 
+		template <typename Func>
+		struct function_args_deducer
+		{
+			static_assert(sizeof(Func) == 0, "Template parameter is not a member function pointer");
+		};
+		template <typename R, typename C, typename... Args>
+		struct function_args_deducer<R (C::*)(Args...)>
+		{
+			using return_type = R;
+			using class_type = C;
+			template <template <typename, typename, typename...> class Apply>
+			using apply_to = Apply<C, R, Args...>;
+		};
+		template <typename R, typename C, typename... Args>
+		struct function_args_deducer<R (C::*)(Args...) const>
+		{
+			using return_type = R;
+			using class_type = C;
+			template <template <typename One, typename Two, typename...> class Apply>
+			using apply_to = Apply<C, R, Args...>;
+		};
+
 		template <typename T, typename C, typename func>
 		struct is_member_setter_function_pointer : std::false_type {};
 		template <typename T, typename C>
@@ -66,6 +89,77 @@ namespace Meta
 		virtual ~MetaObject() = default;
 
 		virtual std::type_index getTypeIndex() const = 0;
+	};
+
+	class MemberFunctionPropBase
+	{
+	public:
+		MemberFunctionPropBase(const std::string& name)
+			: name(name)
+		{
+		}
+		virtual ~MemberFunctionPropBase() = default;
+
+		virtual std::any invoke(MetaObject& obj, const std::vector<std::any>& args) const = 0;
+		virtual std::type_index getTypeIndex() const = 0;
+		const std::string& getName() const { return name; }
+
+	private:
+		std::string name;
+	};
+
+	template <typename ClassType, typename ReturnType, typename... Args>
+	class MemberFunctionProp : public MemberFunctionPropBase
+	{
+	public:
+		MemberFunctionProp(const std::string& name, ReturnType (ClassType::* func)(Args...))
+			: MemberFunctionPropBase(name)
+			, func(func)
+		{
+		}
+
+		std::any invoke(MetaObject& obj, const std::vector<std::any>& args) const override
+		{
+			if (args.size() != sizeof...(Args))
+			{
+				assert(false && "Wrong number of arguments provided to function invocation!");
+				Log::Error().log("Wrong number of arguments provided to function invocation!");
+				return std::any();
+			}
+
+			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			{
+				try
+				{
+					return invoke_impl<Args...>(static_cast<ClassType&>(obj), args, std::index_sequence_for<Args...>{});
+				}
+				catch (const std::bad_any_cast& e)
+				{
+					assert(false && "Bad any cast in function arguments!");
+					Log::Error().log("At least one function argument is of the wrong type!");
+				}
+			}
+			else
+			{
+				assert(false && "Property does not belong to given object!");
+				Log::Error().log("Failed to invoke for prop! Property does not belong to given object!");
+			}
+			return std::any();
+		}
+
+		std::type_index getTypeIndex() const override
+		{
+			return std::type_index(typeid(ReturnType));
+		}
+
+	private:
+		template <typename... Args, std::size_t... Is>
+		std::any invoke_impl(ClassType& obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
+		{
+			return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
+		}
+
+		ReturnType (ClassType::* func)(Args...);
 	};
 
 	class MemberPropertyBase
@@ -204,10 +298,13 @@ namespace Meta
 		const std::string& getName() const { return name; }
 		const std::vector<const MemberPropertyBase*> getProps() const { return props; }
 		const MemberPropertyBase* getProp(const std::string& name) const;
+		const std::vector<const MemberFunctionPropBase*> getFuncs() const { return functions; }
+		const MemberFunctionPropBase* getFunc(const std::string& name) const;
 
 	private:
 		std::string name;
 		std::vector<const MemberPropertyBase*> props;
+		std::vector<const MemberFunctionPropBase*> functions;
 
 		template<typename T> friend class Impl::MetaInitializer;
 	};
@@ -293,6 +390,32 @@ namespace Meta
 					, "Getter must match this signature where T matches the input type to the setter: T(void) const");
 				using V = std::remove_reference_t<std::remove_const_t<member_function_return_type_t<getter>>>;
 				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, setter, getter });
+			}
+
+			template<auto function>
+				requires std::is_member_function_pointer_v<decltype(function)>
+			void addFunction(const std::string& name)
+			{
+				using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberFunctionProp>;
+				auto* func = new ApplyArgs{name, function};
+				assert(func);
+				if (!func)
+				{
+					Log::Critical().log("Unable to allocate memory for new function property!");
+					return;
+				}
+
+				auto foundFunc = std::find_if(m_classPtr->functions.begin(), m_classPtr->functions.end(), [func](const MemberFunctionPropBase* comp) {return comp->getName() == func->getName(); });
+				if (foundFunc == m_classPtr->functions.end())
+				{
+					Log::Debug().log("Registered new function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
+					m_classPtr->functions.push_back(func);
+				}
+				else
+				{
+					assert(false && "Function property already added for class");
+					Log::Error().log("Failed to add function property! Property already exists: \"{}\"", func->getName());
+				}
 			}
 
 		private:

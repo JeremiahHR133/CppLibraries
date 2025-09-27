@@ -25,6 +25,8 @@ public:
 
 	void setThree(float val) { three = val; }
 	float getThree() const { return three; }
+
+	bool exampleRandomFunction(bool input) { return input; }
 private:
 	int one;
 	bool two;
@@ -36,6 +38,8 @@ IMPLEMENT_META_OBJECT(ExampleStruct)
 	w.addProperty<&ExampleStruct::one>("one");
 	w.addProperty<&ExampleStruct::two>("two");
 	w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
+
+	w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 }
 
 int main()
@@ -72,6 +76,12 @@ int main()
 		prop = objMeta->getProp("doesn't exist");
 		if (prop)
 			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
+
+		auto* func = objMeta->getFunc("randomFunction");
+		if (func)
+		{
+			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {true})));
+		}
 	}
 
 }

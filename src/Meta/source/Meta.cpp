@@ -99,6 +99,15 @@ namespace Meta
 		return nullptr;
 	}
 
+	const MemberFunctionPropBase* ClassMetaBase::getFunc(const std::string& name) const
+	{
+		for (const auto* f : getFuncs())
+			if (f->getName() == name)
+				return f;
+
+		return nullptr;
+	}
+
 	namespace Impl
 	{
 		void addClass(ClassMetaBase* c)
