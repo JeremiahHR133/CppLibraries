@@ -26,7 +26,7 @@ public:
 	void setThree(float val) { three = val; }
 	float getThree() const { return three; }
 
-	bool exampleRandomFunction(bool input) { return input; }
+	bool exampleRandomFunction(bool input) const { return input; }
 private:
 	int one;
 	bool two;
@@ -77,7 +77,7 @@ int main()
 		if (prop)
 			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 
-		auto* func = objMeta->getFunc("randomFunction");
+		auto* func = objMeta->getConstFunc("randomFunction");
 		if (func)
 		{
 			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {true})));

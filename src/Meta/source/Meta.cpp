@@ -99,9 +99,19 @@ namespace Meta
 		return nullptr;
 	}
 
-	const MemberFunctionPropBase* ClassMetaBase::getFunc(const std::string& name) const
+
+	const MemberNonConstFunctionPropBase* ClassMetaBase::getNonConstFunc(const std::string& name) const
 	{
-		for (const auto* f : getFuncs())
+		for (const auto* f : getNonConstFuncs())
+			if (f->getName() == name)
+				return f;
+
+		return nullptr;
+	}
+
+	const MemberConstFunctionPropBase* ClassMetaBase::getConstFunc(const std::string& name) const
+	{
+		for (const auto* f : getConstFuncs())
 			if (f->getName() == name)
 				return f;
 
