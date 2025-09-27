@@ -112,6 +112,7 @@ namespace Meta
 
 	// The Meta Object!
 	// The base of all classes exposed to the meta system.
+	// Make sure any types exposed to the meta system subclass MetaObject
 	class MetaObject
 	{
 	public:
@@ -127,7 +128,7 @@ namespace Meta
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
-	// Base for all free member function properties
+	// Base for all "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
 	class MemberFunctionPropBase
 	{
@@ -145,7 +146,7 @@ namespace Meta
 		std::string name;
 	};
 
-	// Base for non-const member functions
+	// Base for non-const "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
 	class MemberNonConstFunctionPropBase : public MemberFunctionPropBase
 	{
@@ -213,7 +214,7 @@ namespace Meta
 		ReturnType (ClassType::* func)(Args...);
 	};
 
-	// Base for const member functions
+	// Base for const "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
 	class MemberConstFunctionPropBase : public MemberFunctionPropBase
 	{
@@ -316,6 +317,7 @@ namespace Meta
 	}
 
 	// The templated base for all member properties
+	// Handles basic typeinfo operations shared between properties
 	template<class ClassType, typename MemberType>
 	class TemplateMemberPropertyBase : public MemberPropertyBase
 	{
@@ -417,7 +419,7 @@ namespace Meta
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
-	// The primary interface for interacting with meta-data
+	// The primary interface for operating on meta-data
 	// The ClassMetaBase is the class used to store and access the property info
 	// Use the global Meta:: functions to get a ClassMetaBase pointer for a registered class
 	class META_EXPORT ClassMetaBase
