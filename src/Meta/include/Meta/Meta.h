@@ -13,8 +13,14 @@
 
 #include <Logger/Logger.h>
 
-// TODO: Document with comments
-
+// Declare an object as exported to the meta system
+// Use this in the class definition, as shown: 
+//		class ExampleStruct : public Meta::MetaObject
+//		{
+//			DECLARE_META_OBJECT(ExampleStruct)
+//		public:
+//          ...
+//		};
 #define DECLARE_META_OBJECT(classname) \
 	private: \
 		friend Meta::Impl::MetaInitializer<classname>; \
@@ -23,6 +29,16 @@
 	public: \
 		std::type_index getTypeIndex() const override;
 
+// Implement an object that has been declared as a meta object
+// Use this in the class implementation, as shown:
+// 		IMPLEMENT_META_OBJECT(ExampleStruct)
+// 		{
+// 			w.addProperty<&ExampleStruct::one>("one");
+// 			w.addProperty<&ExampleStruct::two>("two");
+// 			w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
+// 			w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
+// 		}
+//		ExampleStruct::ExampleStruct() = default;
 #define IMPLEMENT_META_OBJECT(classname) \
 	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
 	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
@@ -30,12 +46,19 @@
 	std::type_index classname::getTypeIndex() const { return std::type_index(typeid(classname)); } \
 	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
 
-//#define META_PROPERTY_CREATE()
-
+// Simple meta system
+// Works off of properties added via the imlementation macro
+// See the macros at the top of this file for examples
 namespace Meta
 {
 	namespace Impl
 	{
+		//
+		// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+		// Template Meta-Programming Support
+		// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+		//
+
 		template<typename T, typename C>
 		T member_value_deducer(T C::*);
 		template<auto MV>
@@ -87,6 +110,8 @@ namespace Meta
 
 	}
 
+	// The Meta Object!
+	// The base of all classes exposed to the meta system.
 	class MetaObject
 	{
 	public:
@@ -96,6 +121,14 @@ namespace Meta
 		virtual std::type_index getTypeIndex() const = 0;
 	};
 
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Function Properties
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
+
+	// Base for all free member function properties
+	// This is not the base of member properties that use member setters and getters 
 	class MemberFunctionPropBase
 	{
 	public:
@@ -112,6 +145,8 @@ namespace Meta
 		std::string name;
 	};
 
+	// Base for non-const member functions
+	// This is not the base of member properties that use member setters and getters 
 	class MemberNonConstFunctionPropBase : public MemberFunctionPropBase
 	{
 	public:
@@ -123,6 +158,7 @@ namespace Meta
 		virtual std::any invoke(MetaObject& obj, const std::vector<std::any>& args) const = 0;
 	};
 
+	// Non-const "free" (not bound as a setter/getter pair) member function property
 	template <typename ClassType, typename ReturnType, typename... Args>
 	class MemberNonConstFunctionProp : public MemberNonConstFunctionPropBase
 	{
@@ -177,6 +213,8 @@ namespace Meta
 		ReturnType (ClassType::* func)(Args...);
 	};
 
+	// Base for const member functions
+	// This is not the base of member properties that use member setters and getters 
 	class MemberConstFunctionPropBase : public MemberFunctionPropBase
 	{
 	public:
@@ -188,6 +226,7 @@ namespace Meta
 		virtual std::any invoke(const MetaObject& obj, const std::vector<std::any>& args) const = 0;
 	};
 
+	// Const "free" (not bound as a setter/getter pair) member function property
 	template <typename ClassType, typename ReturnType, typename... Args>
 	class MemberConstFunctionProp : public MemberConstFunctionPropBase
 	{
@@ -242,6 +281,14 @@ namespace Meta
 		ReturnType (ClassType::* func)(Args...) const;
 	};
 
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Member Properties
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
+
+	// The base of all member properties
+	// This includes member properties that work off of a setter/getter pair
 	class MemberPropertyBase
 	{
 	public:
@@ -268,6 +315,7 @@ namespace Meta
 		class MetaInitializer;
 	}
 
+	// The templated base for all member properties
 	template<class ClassType, typename MemberType>
 	class TemplateMemberPropertyBase : public MemberPropertyBase
 	{
@@ -319,6 +367,7 @@ namespace Meta
 		}
 	};
 
+	// A simple member property that operates off of a pointer to a class member
 	template<class ClassType, typename MemberType>
 	class MemberProperty : public TemplateMemberPropertyBase<ClassType, MemberType>
 	{
@@ -339,6 +388,7 @@ namespace Meta
 		void set(ClassType& obj, MemberType val) const override { obj.*member = val; };
 	};
 
+	// A member property that operates off of a setter/getter member function pair
 	template<class ClassType, typename MemberType>
 	class MemberPropertyFunctional : public TemplateMemberPropertyBase<ClassType, MemberType>
 	{
@@ -361,7 +411,15 @@ namespace Meta
 		void set(ClassType& obj, MemberType val) const override { (obj.*setter)(val); };
 	};
 
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Base Meta Storage Class
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
 
+	// The primary interface for interacting with meta-data
+	// The ClassMetaBase is the class used to store and access the property info
+	// Use the global Meta:: functions to get a ClassMetaBase pointer for a registered class
 	class META_EXPORT ClassMetaBase
 	{
 	public:
@@ -392,6 +450,7 @@ namespace Meta
 		template<typename T> friend class Impl::MetaInitializer;
 	};
 
+	// Small class used to store some information that is otherwise type-erased from the base class
 	template<class C>
 	class ClassMeta : public ClassMetaBase
 	{
@@ -414,16 +473,37 @@ namespace Meta
 		}
 	};
 
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Global Functions
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
+
+	// Call this function once at the start of the program to initialize all meta info
+	// from any loaded libraries
+	// This function is here to defer meta-initialization until after logging has been
+	// initialized and shared libraries have been loaded.
 	META_EXPORT void initializeMetaInfo();
 
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
 	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
 	META_EXPORT const ClassMetaBase* getClassMeta(const std::string& name);
-
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
 	template<typename T>
 	const ClassMetaBase* getClassMeta()
 	{
 		return getClassMeta(std::type_index(typeid(T)));
 	}
+
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Implementation Details
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
 
 	namespace Impl
 	{
