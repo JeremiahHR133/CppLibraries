@@ -36,8 +36,8 @@ namespace Converter
 			}
 			catch (const std::bad_any_cast& e)
 			{
-				assert(false && "Caught bad any cast!");
 				Log::Error().log("Unable to convert type to string; toStr failed! Attempted to use converter with name: {}", converter.name);
+				assert(false && "Caught bad any cast!");
 			}
 			
 			return "";
@@ -51,8 +51,8 @@ namespace Converter
 			}
 			catch (const std::bad_any_cast& e)
 			{
-				assert(false && "Caught bad any cast!");
 				Log::Error().log("Unable to convert string to type; fromStr failed! Attempted to use converter with name: {}", converter.name);
+				assert(false && "Caught bad any cast!");
 			}
 
 			return std::any();

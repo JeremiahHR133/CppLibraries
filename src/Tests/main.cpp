@@ -71,7 +71,7 @@ int main()
 
 		auto* prop = objMeta->getProp("one");
 		if (prop)
-			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
+			Log::Info().log("Get property by name: {}", prop->getAsType<int>(obj));
 
 		prop = objMeta->getProp("doesn't exist");
 		if (prop)
@@ -80,7 +80,7 @@ int main()
 		auto* func = objMeta->getConstFunc("randomFunction");
 		if (func)
 		{
-			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {true})));
+			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {false})));
 		}
 	}
 

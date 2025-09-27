@@ -24,8 +24,8 @@ namespace
 	{
 		if (!newClass)
 		{
-			assert(false && "New class was nullptr");
 			Log::Error().log("Rejected new class which was nullptr!");
+			assert(false && "New class was nullptr");
 			return;
 		}
 
@@ -37,8 +37,8 @@ namespace
 		}
 		else
 		{
-			assert(false && "Duplicate class registered!");
 			Log::Error().log("Class already registered! Name: {}", newClass->getName());
+			assert(false && "Duplicate class registered!");
 		}
 	}
 

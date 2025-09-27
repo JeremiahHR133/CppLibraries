@@ -92,12 +92,12 @@ namespace Converter
 			}
 			catch (const std::bad_any_cast& e)
 			{
-				assert(false && "Caught bad any cast!");
 				Log::Error().log(
 					"Unable to convert string to type; could not cast converter result to type: {}! "
 					"Attempted to use converter with name: {}",
 					std::type_index(typeid(T)), converter->name
 				);
+				assert(false && "Caught bad any cast!");
 			}
 		}
 
