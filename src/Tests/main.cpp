@@ -80,7 +80,7 @@ int main()
 		auto* func = objMeta->getConstFunc("randomFunction");
 		if (func)
 		{
-			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {false})));
+			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {false, 10})));
 		}
 	}
 

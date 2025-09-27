@@ -182,6 +182,7 @@ namespace Meta
 			if (args.size() != sizeof...(Args))
 			{
 				Log::Error().log("Wrong number of arguments provided to function invocation!");
+				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
 				assert(false && "Wrong number of arguments provided to function invocation!");
 				return std::any();
 			}
@@ -201,7 +202,7 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to invoke for prop! Property does not belong to given object!");
+				Log::Error().log("Failed to invoke for prop! Property \"{}\" does not belong to given object!", getName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -251,6 +252,7 @@ namespace Meta
 			if (args.size() != sizeof...(Args))
 			{
 				Log::Error().log("Wrong number of arguments provided to function invocation!");
+				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
 				assert(false && "Wrong number of arguments provided to function invocation!");
 				return std::any();
 			}
@@ -270,7 +272,7 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to invoke for prop! Property does not belong to given object!");
+				Log::Error().log("Failed to invoke for prop! Property \"{}\" does not belong to given object!", getName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -327,13 +329,13 @@ namespace Meta
 				catch (const std::bad_any_cast& e)
 				{
 					// Should never get here because we already did the type check!!
-					Log::Error().log("Unable to getAsType! Any cast failed!");
+					Log::Error().log("Unable to getAsType for \"{}\"! Any cast failed!", getName());
 					assert(false && "Any cast failed to turn type into T!");
 				}
 			}
 			else
 			{
-				Log::Error().log("Unable to getAsType! Type T does not match propertie's type!");
+				Log::Error().log("Unable to getAsType for \"{}\"! Type T does not match propertie's type!", getName());
 				assert(false && "Type T does not match propertie's type!");
 			}
 
@@ -375,7 +377,7 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to getAsAny for prop! Property does not belong to given object!");
+				Log::Error().log("Failed to getAsAny for \"{}\"! Property does not belong to given object!", getName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -391,13 +393,13 @@ namespace Meta
 				}
 				catch (const std::bad_any_cast& e)
 				{
-					Log::Error().log("Failed to set property! Given 'any' is the wrong type!");
+					Log::Error().log("Failed to set property for \"{}\"! Given 'any' is the wrong type!", getName());
 					assert(false && "Attempted to set property with 'any' of wrong type!");
 				}
 			}
 			else
 			{
-				Log::Error().log("Failed to setFromAny for prop! Property does not belong to given object!");
+				Log::Error().log("Failed to setFromAny for \"{}\"! Property does not belong to given object!", getName());
 				assert(false && "Property does not belong to given object!");
 			}
 		}
@@ -563,7 +565,7 @@ namespace Meta
 						}
 						else
 						{
-							Log::Critical().log("Unable to allocate new ClassMeta!");
+							Log::Critical().log("Unable to allocate new ClassMeta for \"{}\"!", name);
 							assert(m_classPtr);
 						}
 					}
@@ -576,7 +578,7 @@ namespace Meta
 			void addProperty(const std::string& name)
 			{
 				using V = member_value_type_t<member>;
-				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, member });
+				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, member }, name);
 			}
 
 			template<auto setter, auto getter>
@@ -590,7 +592,7 @@ namespace Meta
 				static_assert(is_member_getter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(getter)>::value
 					, "Getter must match this signature where T matches the input type to the setter: T(void) const");
 				using V = std::remove_reference_t<std::remove_const_t<member_function_return_type_t<getter>>>;
-				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, setter, getter });
+				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, setter, getter }, name);
 			}
 
 			template<auto function>
@@ -602,56 +604,55 @@ namespace Meta
 				if constexpr (is_const_member_function<decltype(function)>::value)
 				{
 					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberConstFunctionProp>;
-					auto* func = new ApplyArgs{name, function};
-					if (!func)
-					{
-						Log::Critical().log("Unable to allocate memory for new function property!");
-						assert(func);
-						return;
-					}
-					auto foundFunc = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [func](const MemberFunctionPropBase* comp) {return comp->getName() == func->getName(); });
+					auto foundFunc = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [&name](const MemberFunctionPropBase* comp) {return comp->getName() == name; });
 					if (foundFunc == m_classPtr->constFunctions.end())
 					{
+						auto* func = new ApplyArgs{name, function};
+						if (!func)
+						{
+							Log::Critical().log("Unable to allocate memory for new function property \"{}\"!", name);
+							assert(func);
+							return;
+						}
 						Log::Debug().log("Registered new const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
 						m_classPtr->constFunctions.push_back(func);
 					}
 					else
 					{
-						Log::Error().log("Failed to add const function property! Property already exists: \"{}\"", func->getName());
+						Log::Error().log("Failed to add const function property! Property already exists: \"{}\"", name);
 						assert(false && "Const function property already added for class");
 					}
 				}
 				else
 				{
 					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberNonConstFunctionProp>;
-					auto* func = new ApplyArgs{name, function};
-					if (!func)
-					{
-						Log::Critical().log("Unable to allocate memory for new function property!");
-						assert(func);
-						return;
-					}
-					auto foundFunc = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [func](const MemberFunctionPropBase* comp) {return comp->getName() == func->getName(); });
-
+					auto foundFunc = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [&name](const MemberFunctionPropBase* comp) {return comp->getName() == name; });
 					if (foundFunc == m_classPtr->nonConstFunctions.end())
 					{
+						auto* func = new ApplyArgs{name, function};
+						if (!func)
+						{
+							Log::Critical().log("Unable to allocate memory for new function property!");
+							assert(func);
+							return;
+						}
 						Log::Debug().log("Registered new non-const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
 						m_classPtr->nonConstFunctions.push_back(func);
 					}
 					else
 					{
-						Log::Error().log("Failed to add non-const function property! Property already exists: \"{}\"", func->getName());
+						Log::Error().log("Failed to add non-const function property! Property already exists: \"{}\"", name);
 						assert(false && "Non-const function property already added for class");
 					}
 				}
 			}
 
 		private:
-			void internalAddMemberProperty(MemberPropertyBase* prop)
+			void internalAddMemberProperty(MemberPropertyBase* prop, const std::string& name)
 			{
 				if (!prop)
 				{
-					Log::Critical().log("Unable to allocate memory for new property!");
+					Log::Critical().log("Unable to allocate memory for new property \"{}\"!", name);
 					assert(prop);
 					return;
 				}
