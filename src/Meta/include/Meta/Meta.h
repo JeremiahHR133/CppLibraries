@@ -91,16 +91,16 @@ namespace Meta
 		{
 			using return_type = R;
 			using class_type = C;
-			template <template <typename, typename, typename...> class Apply>
-			using apply_to = Apply<C, R, Args...>;
+			template <bool B, template <bool, typename, typename, typename...> class Apply>
+			using apply_to = Apply<B, C, R, Args...>;
 		};
 		template <typename R, typename C, typename... Args>
 		struct function_args_deducer<R (C::*)(Args...) const>
 		{
 			using return_type = R;
 			using class_type = C;
-			template <template <typename, typename, typename...> class Apply>
-			using apply_to = Apply<C, R, Args...>;
+			template <bool B, template <bool, typename, typename, typename...> class Apply>
+			using apply_to = Apply<B, C, R, Args...>;
 		};
 
 		template <typename T, typename C, typename func>
@@ -163,34 +163,42 @@ namespace Meta
 
 	// Base for non-const "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
-	class MemberNonConstFunctionPropBase : public Prop
+	template <bool isConst>
+	class MemberFunctionPropBase : public Prop
 	{
 	public:
-		MemberNonConstFunctionPropBase(const std::string& name, const std::string& className)
+		using MetaObjSignature = std::conditional_t<isConst, const MetaObject&, MetaObject&>;
+		MemberFunctionPropBase(const std::string& name, const std::string& className)
 			: Prop(name, className)
 		{
 		}
 
-		virtual std::any invoke(MetaObject& obj, const std::vector<std::any>& args) const = 0;
+		virtual std::any invoke(MetaObjSignature obj, const std::vector<std::any>& args) const = 0;
 	};
+
+	using MemberConstFunctionPropBase = MemberFunctionPropBase<true>;
+	using MemberNonConstFunctionPropBase = MemberFunctionPropBase<false>;
 
 	// Non-const "free" (not bound as a setter/getter pair) member function property
-	template <typename ClassType, typename ReturnType, typename... Args>
-	class MemberNonConstFunctionProp : public MemberNonConstFunctionPropBase
+	template <bool isConst, typename ClassType, typename ReturnType, typename... Args>
+	class MemberFunctionProp : public MemberFunctionPropBase<isConst>
 	{
 	public:
-		MemberNonConstFunctionProp(const std::string& name, const std::string& className, ReturnType (ClassType::* func)(Args...))
-			: MemberNonConstFunctionPropBase(name, className)
+		using ClassTypeSignature = std::conditional_t<isConst, const ClassType&, ClassType&>;
+		using FunctionSignature  = std::conditional_t<isConst, ReturnType (ClassType::*)(Args...) const, ReturnType (ClassType::*)(Args...)>;
+
+		MemberFunctionProp(const std::string& name, const std::string& className, FunctionSignature func)
+			: MemberFunctionPropBase<isConst>(name, className)
 			, func(func)
 		{
 		}
 
-		std::any invoke(MetaObject& obj, const std::vector<std::any>& args) const override
+		std::any invoke(MemberFunctionPropBase<isConst>::MetaObjSignature obj, const std::vector<std::any>& args) const override
 		{
 			if (args.size() != sizeof...(Args))
 			{
 				Log::Error().log("Wrong number of arguments provided to function invocation!");
-				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
+				Log::Error(1).log("Expected: {}({})", Prop::getName(), Impl::pack_as_type_names<Args...>());
 				Log::Error(1).log("Given {} args!", args.size());
 				assert(false && "Wrong number of arguments provided to function invocation!");
 				return std::any();
@@ -200,18 +208,18 @@ namespace Meta
 			{
 				try
 				{
-					return invoke_impl<Args...>(static_cast<ClassType&>(obj), args, std::index_sequence_for<Args...>{});
+					return invoke_impl<Args...>(static_cast<ClassTypeSignature>(obj), args, std::index_sequence_for<Args...>{});
 				}
 				catch (const std::bad_any_cast& e)
 				{
 					Log::Error().log("At least one function argument is of the wrong type!");
-					Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
+					Log::Error(1).log("Expected: {}({})", Prop::getName(), Impl::pack_as_type_names<Args...>());
 					assert(false && "Bad any cast in function arguments!");
 				}
 			}
 			else
 			{
-				Log::Error().log("Failed to invoke for prop! Property \"{}\" belongs to \"{}\" but given \"{}\"!", getName(), getClassName(), obj.getTypeName());
+				Log::Error().log("Failed to invoke for prop! Property \"{}\" belongs to \"{}\" but given \"{}\"!", Prop::getName(), Prop::getClassName(), obj.getTypeName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -224,83 +232,12 @@ namespace Meta
 
 	private:
 		template <typename... Args, std::size_t... Is>
-		std::any invoke_impl(ClassType& obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
+		std::any invoke_impl(ClassTypeSignature obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
 		{
 			return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
 		}
 
-		ReturnType (ClassType::* func)(Args...);
-	};
-
-	// Base for const "free" (not a bound setter/getter pair) member function properties
-	// This is not the base of member properties that use member setters and getters 
-	class MemberConstFunctionPropBase : public Prop
-	{
-	public:
-		MemberConstFunctionPropBase(const std::string& name, const std::string& className)
-			: Prop(name, className)
-		{
-		}
-
-		virtual std::any invoke(const MetaObject& obj, const std::vector<std::any>& args) const = 0;
-	};
-
-	// Const "free" (not bound as a setter/getter pair) member function property
-	template <typename ClassType, typename ReturnType, typename... Args>
-	class MemberConstFunctionProp : public MemberConstFunctionPropBase
-	{
-	public:
-		MemberConstFunctionProp(const std::string& name, const std::string& className, ReturnType (ClassType::* func)(Args...) const)
-			: MemberConstFunctionPropBase(name, className)
-			, func(func)
-		{
-		}
-
-		std::any invoke(const MetaObject& obj, const std::vector<std::any>& args) const override
-		{
-			if (args.size() != sizeof...(Args))
-			{
-				Log::Error().log("Wrong number of arguments provided to function invocation!");
-				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
-				Log::Error(1).log("Given {} args!", args.size());
-				assert(false && "Wrong number of arguments provided to function invocation!");
-				return std::any();
-			}
-
-			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
-			{
-				try
-				{
-					return invoke_impl<Args...>(static_cast<const ClassType&>(obj), args, std::index_sequence_for<Args...>{});
-				}
-				catch (const std::bad_any_cast& e)
-				{
-					Log::Error().log("At least one function argument is of the wrong type!");
-					Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
-					assert(false && "Bad any cast in function arguments!");
-				}
-			}
-			else
-			{
-				Log::Error().log("Failed to invoke for prop! Property \"{}\" belongs to \"{}\" but given \"{}\"!", getName(), getClassName(), obj.getTypeName());
-				assert(false && "Property does not belong to given object!");
-			}
-			return std::any();
-		}
-
-		std::type_index getTypeIndex() const override
-		{
-			return std::type_index(typeid(ReturnType));
-		}
-
-	private:
-		template <typename... Args, std::size_t... Is>
-		std::any invoke_impl(const ClassType& obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
-		{
-			return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
-		}
-
-		ReturnType (ClassType::* func)(Args...) const;
+		FunctionSignature func;
 	};
 
 	//
@@ -476,8 +413,8 @@ namespace Meta
 		virtual std::type_index getTypeIndex() const = 0;
 
 		const std::string& getName() const { return name; }
-		const std::vector<const MemberPropertyBase*> getProps() const { return props; }
-		const MemberPropertyBase* getProp(const std::string& name) const;
+		const std::vector<const MemberPropertyBase*> getMemberProps() const { return props; }
+		const MemberPropertyBase* getMemberProp(const std::string& name) const;
 		const std::vector<const MemberNonConstFunctionPropBase*> getNonConstFuncs() const { return nonConstFunctions; }
 		const MemberNonConstFunctionPropBase* getNonConstFunc(const std::string& name) const;
 		const std::vector<const MemberConstFunctionPropBase*> getConstFuncs() const { return constFunctions; }
@@ -603,61 +540,52 @@ namespace Meta
 				requires std::is_member_function_pointer_v<decltype(function)>
 			void addFunction(const std::string& name)
 			{
-				// UGLY!!! DUPLICATED!!!
-				// Probably a smell of a bad design... Think on this some
-				if constexpr (is_const_member_function<decltype(function)>::value)
-				{
-					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberConstFunctionProp>;
-					auto foundFunc = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [&name](const auto* comp) {return comp->getName() == name; });
-					if (foundFunc == m_classPtr->constFunctions.end())
-					{
-						auto* func = new ApplyArgs{name, m_classPtr->getName(), function};
-						if (!func)
-						{
-							Log::Critical().log("Unable to allocate memory for new function property \"{}\"!", name);
-							assert(func);
-							return;
-						}
-						Log::Debug().log("Registered new const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
-						m_classPtr->constFunctions.push_back(func);
-					}
-					else
-					{
-						Log::Error().log("Failed to add const function property! Property already exists: \"{}\"", name);
-						assert(false && "Const function property already added for class");
-					}
-				}
-				else
-				{
-					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberNonConstFunctionProp>;
-					auto foundFunc = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [&name](const auto* comp) {return comp->getName() == name; });
-					if (foundFunc == m_classPtr->nonConstFunctions.end())
-					{
-						auto* func = new ApplyArgs{name, m_classPtr->getName(), function};
-						if (!func)
-						{
-							Log::Critical().log("Unable to allocate memory for new function property!");
-							assert(func);
-							return;
-						}
-						Log::Debug().log("Registered new non-const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
-						m_classPtr->nonConstFunctions.push_back(func);
-					}
-					else
-					{
-						Log::Error().log("Failed to add non-const function property! Property already exists: \"{}\"", name);
-						assert(false && "Non-const function property already added for class");
-					}
-				}
+				constexpr bool isConst = is_const_member_function<decltype(function)>::value;
+				using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<isConst, MemberFunctionProp>;
+				internalAddMemberFunc<ApplyArgs, isConst, function>(name);
 			}
 
 		private:
+			template <bool isConst>
+			constexpr auto get_member_vec_ptr() requires(isConst)
+			{
+				return &ClassMetaBase::constFunctions;
+			}
+			template <bool isConst>
+			constexpr auto get_member_vec_ptr() requires(!isConst)
+			{
+				return &ClassMetaBase::nonConstFunctions;
+			}
+			template <typename Constructor, bool isConst, auto function>
+			void internalAddMemberFunc(const std::string& name)
+			{
+				// lol I kinda like this
+				auto vecPtr = get_member_vec_ptr<isConst>();
+				auto& vec = m_classPtr->*vecPtr;
+
+				auto foundFunc = std::find_if(vec.begin(), vec.end(), [&name](const auto* comp) {return comp->getName() == name; });
+				if (foundFunc == vec.end())
+				{
+					auto* func = new Constructor{name, m_classPtr->getName(), function};
+					if (!func)
+					{
+						Log::Critical().log("Unable to allocate memory for new function property \"{}\"!", name);
+						assert(func);
+						delete func;
+						return;
+					}
+					Log::Debug().log("Registered new const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
+					vec.push_back(func);
+				}
+			}
+
 			void internalAddMemberProperty(MemberPropertyBase* prop, const std::string& name)
 			{
 				if (!prop)
 				{
 					Log::Critical().log("Unable to allocate memory for new property \"{}\"!", name);
 					assert(prop);
+					delete prop;
 					return;
 				}
 
@@ -671,6 +599,7 @@ namespace Meta
 				{
 					Log::Error().log("Failed to add property! Property already exists: \"{}\"", prop->getName());
 					assert(false && "Property already added for class");
+					delete prop;
 				}
 			}
 

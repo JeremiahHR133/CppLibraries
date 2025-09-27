@@ -26,7 +26,8 @@ public:
 	void setThree(float val) { three = val; }
 	float getThree() const { return three; }
 
-	bool exampleRandomFunction(bool input) const { return input; }
+	bool exampleRandomFunction(bool input) { return input; }
+	bool exampleConstRandomFunction(bool input) const { return input; }
 private:
 	int one;
 	bool two;
@@ -40,6 +41,7 @@ IMPLEMENT_META_OBJECT(ExampleStruct)
 	w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
 
 	w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
+	w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction");
 }
 
 class TEST : public Meta::MetaObject
@@ -70,7 +72,7 @@ int main()
 	Log::Info(1).log("Test of indentation!");
 	Log::Info(2).log("Test of indentation!");
 
-	ExampleStruct obj{1, false, 10.0f};
+	const ExampleStruct obj{1, false, 10.0f};
 	auto* objMeta = Meta::getClassMeta<ExampleStruct>();
 	if (objMeta)
 	{
@@ -79,20 +81,21 @@ int main()
 			Log::Info().log("Property: Name = {}, Value = {}", prop->getName(), Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 		}
 
-		auto* prop = objMeta->getProp("one");
+		auto* prop = objMeta->getMemberProp("one");
 		if (prop)
 			Log::Info().log("Get property by name: {}", prop->getAsType<int>(obj));
 
-		prop = objMeta->getProp("doesn't exist");
+		prop = objMeta->getMemberProp("doesn't exist");
 		if (prop)
 			Log::Info().log("Get property by name: {}", Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
 
-		auto* func = objMeta->getConstFunc("randomFunction");
+		auto* func = objMeta->getNonConstFunc("randomFunction");
 		if (func)
-		{
-			TEST t;
-			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(t, {false})));
-		}
+			Log::Info().log("Run non-const function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {false})));
+
+		auto* cfunc = objMeta->getConstFunc("constRandomFunction");
+		if (cfunc)
+			Log::Info().log("Run const function: {}", Converter::getStringFromAny(cfunc->getTypeIndex(), cfunc->invoke(obj, {false})));
 	}
 
 }

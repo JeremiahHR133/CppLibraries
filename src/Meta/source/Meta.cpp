@@ -90,7 +90,7 @@ namespace Meta
 		return nullptr;
 	}
 
-	const MemberPropertyBase* ClassMetaBase::getProp(const std::string& name) const
+	const MemberPropertyBase* ClassMetaBase::getMemberProp(const std::string& name) const
 	{
 		for (const auto* p : getProps())
 			if (p->getName() == name)
