@@ -42,6 +42,16 @@ IMPLEMENT_META_OBJECT(ExampleStruct)
 	w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 }
 
+class TEST : public Meta::MetaObject
+{
+	DECLARE_META_OBJECT(TEST)
+public:
+	int dummy = 0;
+};
+IMPLEMENT_META_OBJECT(TEST)
+{
+}
+
 int main()
 {
 	Log::initLogging(std::cout, std::cerr);
@@ -80,7 +90,8 @@ int main()
 		auto* func = objMeta->getConstFunc("randomFunction");
 		if (func)
 		{
-			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(obj, {false, 10})));
+			TEST t;
+			Log::Info().log("Run function: {}", Converter::getStringFromAny(func->getTypeIndex(), func->invoke(t, {false})));
 		}
 	}
 

@@ -27,7 +27,8 @@
 		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
 		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
 	public: \
-		std::type_index getTypeIndex() const override;
+		std::type_index getTypeIndex() const override; \
+		std::string getTypeName() const override;
 
 // Implement an object that has been declared as a meta object
 // Use this in the class implementation, as shown:
@@ -44,6 +45,7 @@
 	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
 	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname); \
 	std::type_index classname::getTypeIndex() const { return std::type_index(typeid(classname)); } \
+	std::string classname::getTypeName() const { return #classname; } \
 	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
 
 // Simple meta system
@@ -127,6 +129,27 @@ namespace Meta
 		virtual ~MetaObject() = default;
 
 		virtual std::type_index getTypeIndex() const = 0;
+		virtual std::string getTypeName() const = 0;
+	};
+
+	// Base class for all properties
+	class Prop
+	{
+	public:
+		Prop(const std::string& name, const std::string& className)
+			: name(name)
+			, className(className)
+		{
+		}
+		virtual ~Prop() = default;
+
+		virtual std::type_index getTypeIndex() const = 0;
+		const std::string& getName() const { return name; }
+		const std::string& getClassName() const { return className; }
+
+	private:
+		std::string name;
+		std::string className;
 	};
 
 	//
@@ -135,31 +158,13 @@ namespace Meta
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
-	// Base for all "free" (not a bound setter/getter pair) member function properties
-	// This is not the base of member properties that use member setters and getters 
-	class MemberFunctionPropBase
-	{
-	public:
-		MemberFunctionPropBase(const std::string& name)
-			: name(name)
-		{
-		}
-		virtual ~MemberFunctionPropBase() = default;
-
-		virtual std::type_index getTypeIndex() const = 0;
-		const std::string& getName() const { return name; }
-
-	private:
-		std::string name;
-	};
-
 	// Base for non-const "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
-	class MemberNonConstFunctionPropBase : public MemberFunctionPropBase
+	class MemberNonConstFunctionPropBase : public Prop
 	{
 	public:
-		MemberNonConstFunctionPropBase(const std::string& name)
-			: MemberFunctionPropBase(name)
+		MemberNonConstFunctionPropBase(const std::string& name, const std::string& className)
+			: Prop(name, className)
 		{
 		}
 
@@ -171,8 +176,8 @@ namespace Meta
 	class MemberNonConstFunctionProp : public MemberNonConstFunctionPropBase
 	{
 	public:
-		MemberNonConstFunctionProp(const std::string& name, ReturnType (ClassType::* func)(Args...))
-			: MemberNonConstFunctionPropBase(name)
+		MemberNonConstFunctionProp(const std::string& name, const std::string& className, ReturnType (ClassType::* func)(Args...))
+			: MemberNonConstFunctionPropBase(name, className)
 			, func(func)
 		{
 		}
@@ -183,6 +188,7 @@ namespace Meta
 			{
 				Log::Error().log("Wrong number of arguments provided to function invocation!");
 				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
+				Log::Error(1).log("Given {} args!", args.size());
 				assert(false && "Wrong number of arguments provided to function invocation!");
 				return std::any();
 			}
@@ -202,7 +208,7 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to invoke for prop! Property \"{}\" does not belong to given object!", getName());
+				Log::Error().log("Failed to invoke for prop! Property \"{}\" belongs to \"{}\" but given \"{}\"!", getName(), getClassName(), obj.getTypeName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -225,11 +231,11 @@ namespace Meta
 
 	// Base for const "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
-	class MemberConstFunctionPropBase : public MemberFunctionPropBase
+	class MemberConstFunctionPropBase : public Prop
 	{
 	public:
-		MemberConstFunctionPropBase(const std::string& name)
-			: MemberFunctionPropBase(name)
+		MemberConstFunctionPropBase(const std::string& name, const std::string& className)
+			: Prop(name, className)
 		{
 		}
 
@@ -241,8 +247,8 @@ namespace Meta
 	class MemberConstFunctionProp : public MemberConstFunctionPropBase
 	{
 	public:
-		MemberConstFunctionProp(const std::string& name, ReturnType (ClassType::* func)(Args...) const)
-			: MemberConstFunctionPropBase(name)
+		MemberConstFunctionProp(const std::string& name, const std::string& className, ReturnType (ClassType::* func)(Args...) const)
+			: MemberConstFunctionPropBase(name, className)
 			, func(func)
 		{
 		}
@@ -253,6 +259,7 @@ namespace Meta
 			{
 				Log::Error().log("Wrong number of arguments provided to function invocation!");
 				Log::Error(1).log("Expected: {}({})", getName(), Impl::pack_as_type_names<Args...>());
+				Log::Error(1).log("Given {} args!", args.size());
 				assert(false && "Wrong number of arguments provided to function invocation!");
 				return std::any();
 			}
@@ -272,7 +279,7 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to invoke for prop! Property \"{}\" does not belong to given object!", getName());
+				Log::Error().log("Failed to invoke for prop! Property \"{}\" belongs to \"{}\" but given \"{}\"!", getName(), getClassName(), obj.getTypeName());
 				assert(false && "Property does not belong to given object!");
 			}
 			return std::any();
@@ -301,11 +308,11 @@ namespace Meta
 
 	// The base of all member properties
 	// This includes member properties that work off of a setter/getter pair
-	class MemberPropertyBase
+	class MemberPropertyBase : public Prop
 	{
 	public:
-		MemberPropertyBase(const std::string& str)
-			: name(str)
+		MemberPropertyBase(const std::string& name, const std::string& className)
+			: Prop(name, className)
 		{
 		}
 		virtual ~MemberPropertyBase() = default;
@@ -313,9 +320,6 @@ namespace Meta
 		virtual std::any createDefaultAsAny() const = 0;
 		virtual std::any getAsAny(const MetaObject& obj) const = 0;
 		virtual void setFromAny(MetaObject& obj, const std::any& val) const = 0;
-		virtual std::type_index getTypeIndex() const = 0;
-
-		const std::string& getName() const { return name; }
 
 		template <typename T>
 		T getAsType(const MetaObject& obj) const
@@ -341,9 +345,6 @@ namespace Meta
 
 			return T();
 		}
-
-	private:
-		std::string name;
 	};
 
 	namespace Impl
@@ -358,8 +359,8 @@ namespace Meta
 	class TemplateMemberPropertyBase : public MemberPropertyBase
 	{
 	public:
-		TemplateMemberPropertyBase(const std::string& name)
-			: MemberPropertyBase(name)
+		TemplateMemberPropertyBase(const std::string& name, const std::string& className)
+			: MemberPropertyBase(name, className)
 		{
 		}
 
@@ -412,8 +413,8 @@ namespace Meta
 		friend Impl::MetaInitializer<ClassType>;
 
 		// Creation is limited to the initializer class
-		MemberProperty(const std::string& name, MemberType ClassType::* ptr)
-			: TemplateMemberPropertyBase<ClassType, MemberType>(name)
+		MemberProperty(const std::string& name, const std::string& className, MemberType ClassType::* ptr)
+			: TemplateMemberPropertyBase<ClassType, MemberType>(name, className)
 			, member(ptr)
 		{
 		}
@@ -433,8 +434,8 @@ namespace Meta
 		friend Impl::MetaInitializer<ClassType>;
 
 		// Creation is limited to the initializer class
-		MemberPropertyFunctional(const std::string& name, void (ClassType::*setter)(MemberType), MemberType (ClassType::*getter)(void) const)
-			: TemplateMemberPropertyBase<ClassType, MemberType>(name)
+		MemberPropertyFunctional(const std::string& name, const std::string& className, void (ClassType::*setter)(MemberType), MemberType (ClassType::*getter)(void) const)
+			: TemplateMemberPropertyBase<ClassType, MemberType>(name, className)
 			, setter(setter)
 			, getter(getter)
 		{
@@ -578,7 +579,7 @@ namespace Meta
 			void addProperty(const std::string& name)
 			{
 				using V = member_value_type_t<member>;
-				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, member }, name);
+				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, m_classPtr->getName(), member}, name);
 			}
 
 			template<auto setter, auto getter>
@@ -592,7 +593,7 @@ namespace Meta
 				static_assert(is_member_getter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(getter)>::value
 					, "Getter must match this signature where T matches the input type to the setter: T(void) const");
 				using V = std::remove_reference_t<std::remove_const_t<member_function_return_type_t<getter>>>;
-				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, setter, getter }, name);
+				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, m_classPtr->getName(), setter, getter}, name);
 			}
 
 			template<auto function>
@@ -604,10 +605,10 @@ namespace Meta
 				if constexpr (is_const_member_function<decltype(function)>::value)
 				{
 					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberConstFunctionProp>;
-					auto foundFunc = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [&name](const MemberFunctionPropBase* comp) {return comp->getName() == name; });
+					auto foundFunc = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [&name](const auto* comp) {return comp->getName() == name; });
 					if (foundFunc == m_classPtr->constFunctions.end())
 					{
-						auto* func = new ApplyArgs{name, function};
+						auto* func = new ApplyArgs{name, m_classPtr->getName(), function};
 						if (!func)
 						{
 							Log::Critical().log("Unable to allocate memory for new function property \"{}\"!", name);
@@ -626,10 +627,10 @@ namespace Meta
 				else
 				{
 					using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<MemberNonConstFunctionProp>;
-					auto foundFunc = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [&name](const MemberFunctionPropBase* comp) {return comp->getName() == name; });
+					auto foundFunc = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [&name](const auto* comp) {return comp->getName() == name; });
 					if (foundFunc == m_classPtr->nonConstFunctions.end())
 					{
-						auto* func = new ApplyArgs{name, function};
+						auto* func = new ApplyArgs{name, m_classPtr->getName(), function};
 						if (!func)
 						{
 							Log::Critical().log("Unable to allocate memory for new function property!");
