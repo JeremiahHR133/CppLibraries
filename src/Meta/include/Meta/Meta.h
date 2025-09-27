@@ -13,6 +13,9 @@
 
 #include <Logger/Logger.h>
 
+// TODO: Make the fuction property base class generic based on a bool template parameter
+//       that modifies a using clause to edit the function signature!
+
 // Declare an object as exported to the meta system
 // Use this in the class definition, as shown: 
 //		class ExampleStruct : public Meta::MetaObject
