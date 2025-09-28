@@ -37,9 +37,9 @@
 // Use this in the class implementation, as shown:
 // 		IMPLEMENT_META_OBJECT(ExampleStruct)
 // 		{
-// 			w.addProperty<&ExampleStruct::one>("one");
-// 			w.addProperty<&ExampleStruct::two>("two");
-// 			w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
+// 			w.addMember<&ExampleStruct::one>("one");
+// 			w.addMember<&ExampleStruct::two>("two");
+// 			w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
 // 			w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 // 		}
 //		ExampleStruct::ExampleStruct() = default;
@@ -91,16 +91,22 @@ namespace Meta
 		{
 			using return_type = R;
 			using class_type = C;
+			// Boy this is crap.... 
 			template <bool B, template <bool, typename, typename, typename...> class Apply>
-			using apply_to = Apply<B, C, R, Args...>;
+			using apply_to_1 = Apply<B, C, R, Args...>;
+			template <bool B, template <bool, typename...> class Apply>
+			using apply_to_2 = Apply<B, Args...>;
 		};
 		template <typename R, typename C, typename... Args>
 		struct function_args_deducer<R (C::*)(Args...) const>
 		{
 			using return_type = R;
 			using class_type = C;
+			// Boy this is crap.... 
 			template <bool B, template <bool, typename, typename, typename...> class Apply>
-			using apply_to = Apply<B, C, R, Args...>;
+			using apply_to_1 = Apply<B, C, R, Args...>;
+			template <bool B, template <bool, typename...> class Apply>
+			using apply_to_2 = Apply<B, Args...>;
 		};
 
 		template <typename T, typename C, typename func>
@@ -149,10 +155,13 @@ namespace Meta
 		virtual std::type_index getTypeIndex() const = 0;
 		const std::string& getName() const { return name; }
 		const std::string& getClassName() const { return className; }
+		const std::string& getDescription() const { return description; }
+		void setDescription(const std::string& str) { description = str; }
 
 	private:
 		std::string name;
 		std::string className;
+		std::string description;
 	};
 
 	//
@@ -161,8 +170,9 @@ namespace Meta
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
-	// Base for non-const "free" (not a bound setter/getter pair) member function properties
+	// Base for "free" (not a bound setter/getter pair) member function properties
 	// This is not the base of member properties that use member setters and getters 
+	// The class must be templated to differentiate between const and non-const functions
 	template <bool isConst>
 	class MemberFunctionPropBase : public Prop
 	{
@@ -174,12 +184,30 @@ namespace Meta
 		}
 
 		virtual std::any invoke(MetaObjSignature obj, const std::vector<std::any>& args) const = 0;
+
+		void setDefaultArgs(const std::vector<std::any>& args) { defaultArgs = args; };
+		// Assuming you won't invoke with default args when the function takes no args...
+		std::any invokeDefaultArgs(MetaObjSignature obj) const
+		{
+			if (defaultArgs.size())
+				return invoke(obj, defaultArgs);
+			else
+			{
+				Log::Error().log("Unable to invoke with default args! Property was never given default args!");
+				assert(false && "Property was never given default args!");
+			}
+
+			return std::any();
+		}
+
+	private:
+		std::vector<std::any> defaultArgs;
 	};
 
 	using MemberConstFunctionPropBase = MemberFunctionPropBase<true>;
 	using MemberNonConstFunctionPropBase = MemberFunctionPropBase<false>;
 
-	// Non-const "free" (not bound as a setter/getter pair) member function property
+	// "free" (not bound as a setter/getter pair) member function property
 	template <bool isConst, typename ClassType, typename ReturnType, typename... Args>
 	class MemberFunctionProp : public MemberFunctionPropBase<isConst>
 	{
@@ -253,6 +281,7 @@ namespace Meta
 	public:
 		MemberPropertyBase(const std::string& name, const std::string& className)
 			: Prop(name, className)
+			, readOnly(false)
 		{
 		}
 		virtual ~MemberPropertyBase() = default;
@@ -260,6 +289,20 @@ namespace Meta
 		virtual std::any createDefaultAsAny() const = 0;
 		virtual std::any getAsAny(const MetaObject& obj) const = 0;
 		virtual void setFromAny(MetaObject& obj, const std::any& val) const = 0;
+
+		void setDefault(const std::any& val) { defaultValue = val; }
+		void setReadOnly() { readOnly = true; }
+		bool getReadOnly() const { return readOnly; }
+		void applyDefault(MetaObject& obj) const
+		{
+			if (defaultValue.has_value())
+				setFromAny(obj, defaultValue);
+			else
+			{
+				Log::Error().log("Unable to apply default because one was never set!");
+				assert(false && "Property was never given a default value!");
+			}
+		}
 
 		template <typename T>
 		T getAsType(const MetaObject& obj) const
@@ -285,6 +328,10 @@ namespace Meta
 
 			return T();
 		}
+
+	private:
+		std::any defaultValue;
+		bool readOnly;
 	};
 
 	namespace Impl
@@ -326,6 +373,13 @@ namespace Meta
 
 		void setFromAny(MetaObject& obj, const std::any& val) const override
 		{
+			if (getReadOnly())
+			{
+				Log::Error().log("Refusing to set value on read only property!");
+				assert(false && "Refusing to set read only property!");
+				return;
+			}
+
 			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
 			{
 				try
@@ -389,6 +443,137 @@ namespace Meta
 		MemberType get(const ClassType& obj) const override { return (obj.*getter)(); };
 		void set(ClassType& obj, MemberType val) const override { (obj.*setter)(val); };
 	};
+
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Property Setters
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
+
+	namespace Impl
+	{
+		template<typename ClassType>
+		class MetaInitializer;
+	}
+
+	template<typename PS>
+	class PropSetter
+	{
+	protected:
+		template <typename T>
+		friend class Impl::MetaInitializer;
+
+		PropSetter(Prop* prop)
+			: prop(prop)
+		{
+		}
+
+		void pointerFailed() const
+		{
+			Log::Error().log("Unable to modify function prop pointer as it was null!");
+			assert(false && "Unable to modify function prop pointer as it was null!");
+		}
+	public:
+		PS& setDescription(const std::string& str)
+		{
+			if (prop)
+				prop->setDescription(str);
+			else
+				pointerFailed();
+
+			return static_cast<PS&>(*this);
+		}
+
+		//
+		// Prevent usage of the class outside the intended context
+		// The prop-setter should only be used in the IMPLEMENT_META_OBJECT function
+		//
+		PropSetter(const PropSetter&) = delete;
+		PropSetter(PropSetter&&) = delete;
+		PropSetter& operator=(const PropSetter&) = delete;
+		PropSetter& operator=(PropSetter&&) = delete;
+
+	private:
+		Prop* prop;
+	};
+
+	template<bool isConst, typename... Args>
+	class FunctionPropSetter : public PropSetter<FunctionPropSetter<isConst, Args...>>
+	{
+		template <typename T>
+		friend class Impl::MetaInitializer;
+
+		FunctionPropSetter(MemberFunctionPropBase<isConst>* prop)
+			: PropSetter<FunctionPropSetter>(prop)
+			, fprop(prop)
+		{
+		}
+		MemberFunctionPropBase<isConst>* fprop;
+	public:
+
+		FunctionPropSetter& setDefaultArgs(Args... args)
+		{
+			if (fprop)
+				fprop->setDefaultArgs(std::vector<std::any>{args...});
+			else
+				PropSetter<FunctionPropSetter<isConst, Args...>>::pointerFailed();
+
+			return *this;
+		}
+
+		//
+		// Prevent usage of the class outside the intended context
+		// The prop-setter should only be used in the IMPLEMENT_META_OBJECT function
+		//
+		FunctionPropSetter(const FunctionPropSetter&) = delete;
+		FunctionPropSetter(FunctionPropSetter&&) = delete;
+		FunctionPropSetter& operator=(const FunctionPropSetter&) = delete;
+		FunctionPropSetter& operator=(FunctionPropSetter&&) = delete;
+	};
+
+	template <typename PType>
+	class MemberPropSetter : public PropSetter<MemberPropSetter<PType>>
+	{
+		template <typename T>
+		friend class Impl::MetaInitializer;
+
+		MemberPropSetter(MemberPropertyBase* prop)
+			: PropSetter<MemberPropSetter<PType>>(prop)
+			, mprop(prop)
+		{
+		}
+		MemberPropertyBase* mprop;
+	public:
+
+		MemberPropSetter& setDefault(const PType& val)
+		{
+			if (mprop)
+				mprop->setDefault(std::any(val));
+			else
+				PropSetter<MemberPropSetter<PType>>::pointerFailed();
+
+			return *this;
+		}
+
+		MemberPropSetter& setReadOnly()
+		{
+			if (mprop)
+				mprop->setReadOnly();
+			else
+				PropSetter<MemberPropSetter<PType>>::pointerFailed();
+
+			return *this;
+		}
+		//
+		// Prevent usage of the class outside the intended context
+		// The prop-setter should only be used in the IMPLEMENT_META_OBJECT function
+		//
+		MemberPropSetter(const MemberPropSetter&) = delete;
+		MemberPropSetter(MemberPropSetter&&) = delete;
+		MemberPropSetter& operator=(const MemberPropSetter&) = delete;
+		MemberPropSetter& operator=(MemberPropSetter&&) = delete;
+	};
+
 
 	//
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -516,16 +701,17 @@ namespace Meta
 
 			template<auto member>
 				requires std::is_member_object_pointer_v<decltype(member)>
-			void addProperty(const std::string& name)
+			auto addMember(const std::string& name)
 			{
 				using V = member_value_type_t<member>;
-				internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, m_classPtr->getName(), member}, name);
+				auto* prop = internalAddMemberProperty(new MemberProperty<ClassType, V>{ name, m_classPtr->getName(), member}, name);
+				return MemberPropSetter<V>(prop);
 			}
 
 			template<auto setter, auto getter>
 			requires std::is_member_function_pointer_v<decltype(setter)>
 				  && std::is_member_function_pointer_v<decltype(getter)>
-			void addProperty(const std::string& name)
+			auto addMember(const std::string& name)
 			{
 				// I find the static asserts provide better feedback on errors as opposed to just having these as a requires clause
 				static_assert(is_member_setter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(setter)>::value
@@ -533,16 +719,19 @@ namespace Meta
 				static_assert(is_member_getter_function_pointer<std::remove_cvref_t<member_function_return_type_t<getter>>, ClassType, decltype(getter)>::value
 					, "Getter must match this signature where T matches the input type to the setter: T(void) const");
 				using V = std::remove_reference_t<std::remove_const_t<member_function_return_type_t<getter>>>;
-				internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, m_classPtr->getName(), setter, getter}, name);
+				auto* prop = internalAddMemberProperty(new MemberPropertyFunctional<ClassType, V>{ name, m_classPtr->getName(), setter, getter}, name);
+				return MemberPropSetter<V>(prop);
 			}
 
 			template<auto function>
 				requires std::is_member_function_pointer_v<decltype(function)>
-			void addFunction(const std::string& name)
+			auto addFunction(const std::string& name)
 			{
 				constexpr bool isConst = is_const_member_function<decltype(function)>::value;
-				using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to<isConst, MemberFunctionProp>;
-				internalAddMemberFunc<ApplyArgs, isConst, function>(name);
+				using ApplyArgs = function_args_deducer<decltype(function)>::template apply_to_1<isConst, MemberFunctionProp>;
+				auto* prop = internalAddMemberFunc<ApplyArgs, isConst, function>(name);
+				using ApplySetter = function_args_deducer<decltype(function)>::template apply_to_2<isConst, FunctionPropSetter>; 
+				return ApplySetter(prop);
 			}
 
 		private:
@@ -557,7 +746,7 @@ namespace Meta
 				return &ClassMetaBase::nonConstFunctions;
 			}
 			template <typename Constructor, bool isConst, auto function>
-			void internalAddMemberFunc(const std::string& name)
+			auto internalAddMemberFunc(const std::string& name)
 			{
 				// lol I kinda like this
 				auto vecPtr = get_member_vec_ptr<isConst>();
@@ -572,21 +761,28 @@ namespace Meta
 						Log::Critical().log("Unable to allocate memory for new function property \"{}\"!", name);
 						assert(func);
 						delete func;
-						return;
+						return static_cast<Constructor*>(nullptr);
 					}
 					Log::Debug().log("Registered new const function property: \"{}\" to class: \"{}\"", func->getName(), m_classPtr->getName());
 					vec.push_back(func);
+					return func;
 				}
+				else
+				{
+					Log::Error().log("Failed to add function property! Property \"{}\" already exists on class \"{}\"", name, m_classPtr->getName());
+					assert(false && "Property already added for class");
+				}
+				return static_cast<Constructor*>(nullptr);
 			}
 
-			void internalAddMemberProperty(MemberPropertyBase* prop, const std::string& name)
+			MemberPropertyBase* internalAddMemberProperty(MemberPropertyBase* prop, const std::string& name)
 			{
 				if (!prop)
 				{
 					Log::Critical().log("Unable to allocate memory for new property \"{}\"!", name);
 					assert(prop);
 					delete prop;
-					return;
+					return nullptr;
 				}
 
 				auto foundProp = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](const MemberPropertyBase* comp) {return comp->getName() == prop->getName(); });
@@ -594,13 +790,16 @@ namespace Meta
 				{
 					Log::Debug().log("Registered new property: \"{}\" to class: \"{}\"", prop->getName(), m_classPtr->getName());
 					m_classPtr->props.push_back(prop);
+					return prop;
 				}
 				else
 				{
-					Log::Error().log("Failed to add property! Property already exists: \"{}\"", prop->getName());
+					Log::Error().log("Failed to add property! Property \"{}\" already exists on class \"{}\"", prop->getName(), m_classPtr->getName());
 					assert(false && "Property already added for class");
 					delete prop;
 				}
+
+				return nullptr;
 			}
 
 			ClassMetaBase* m_classPtr;

@@ -83,7 +83,7 @@ namespace Meta
 
 	const MemberPropertyBase* getPropMeta(const ClassMetaBase& meta, const std::string& name)
 	{
-		for (const auto* p : meta.getProps())
+		for (const auto* p : meta.getMemberProps())
 			if (p->getName() == name)
 				return p;
 
@@ -92,7 +92,7 @@ namespace Meta
 
 	const MemberPropertyBase* ClassMetaBase::getMemberProp(const std::string& name) const
 	{
-		for (const auto* p : getProps())
+		for (const auto* p : getMemberProps())
 			if (p->getName() == name)
 				return p;
 

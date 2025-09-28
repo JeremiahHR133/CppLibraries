@@ -36,12 +36,20 @@ private:
 
 IMPLEMENT_META_OBJECT(ExampleStruct)
 {
-	w.addProperty<&ExampleStruct::one>("one");
-	w.addProperty<&ExampleStruct::two>("two");
-	w.addProperty<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
+	w.addMember<&ExampleStruct::one>("one")
+		.setDescription("Test description one!")
+		.setDefault(80085);
+
+	w.addMember<&ExampleStruct::two>("two")
+		.setDescription("Test description two!");
+
+	w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three")
+		.setDescription("Test description three!");
 
 	w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
-	w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction");
+
+	w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction")
+		.setDefaultArgs({true});
 }
 
 class TEST : public Meta::MetaObject
@@ -72,18 +80,22 @@ int main()
 	Log::Info(1).log("Test of indentation!");
 	Log::Info(2).log("Test of indentation!");
 
-	const ExampleStruct obj{1, false, 10.0f};
+	ExampleStruct obj{11, false, 10.0f};
 	auto* objMeta = Meta::getClassMeta<ExampleStruct>();
 	if (objMeta)
 	{
-		for (const auto& prop : objMeta->getProps())
+		for (const auto* prop : objMeta->getMemberProps())
 		{
 			Log::Info().log("Property: Name = {}, Value = {}", prop->getName(), Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));
+			Log::Info(1).log("Description: {}", prop->getDescription());
 		}
 
 		auto* prop = objMeta->getMemberProp("one");
 		if (prop)
-			Log::Info().log("Get property by name: {}", prop->getAsType<int>(obj));
+		{
+			prop->applyDefault(obj);
+			Log::Info().log("Get property by name with default: {}", prop->getAsType<int>(obj));
+		}
 
 		prop = objMeta->getMemberProp("doesn't exist");
 		if (prop)
@@ -95,7 +107,10 @@ int main()
 
 		auto* cfunc = objMeta->getConstFunc("constRandomFunction");
 		if (cfunc)
+		{
 			Log::Info().log("Run const function: {}", Converter::getStringFromAny(cfunc->getTypeIndex(), cfunc->invoke(obj, {false})));
+			Log::Info().log("Run const function default args: {}", Converter::getStringFromAny(cfunc->getTypeIndex(), cfunc->invokeDefaultArgs(obj)));
+		}
 	}
 
 }
