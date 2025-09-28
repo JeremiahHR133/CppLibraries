@@ -41,7 +41,8 @@ IMPLEMENT_META_OBJECT(ExampleStruct)
 		.setDefault(80085);
 
 	w.addMember<&ExampleStruct::two>("two")
-		.setDescription("Test description two!");
+		.setDescription("Test description two!")
+		.setReadOnly();
 
 	w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three")
 		.setDescription("Test description three!");
@@ -108,8 +109,8 @@ int main()
 		auto* cfunc = objMeta->getConstFunc("constRandomFunction");
 		if (cfunc)
 		{
-			Log::Info().log("Run const function: {}", Converter::getStringFromAny(cfunc->getTypeIndex(), cfunc->invoke(obj, {false})));
-			Log::Info().log("Run const function default args: {}", Converter::getStringFromAny(cfunc->getTypeIndex(), cfunc->invokeDefaultArgs(obj)));
+			Log::Info().log("Run const function: {}", cfunc->invokeAsType<bool>(obj, {false}));
+			Log::Info().log("Run const function default args: {}", cfunc->invokeDefaultArgsAsType<bool>(obj));
 		}
 	}
 

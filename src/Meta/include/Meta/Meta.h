@@ -158,6 +158,32 @@ namespace Meta
 		const std::string& getDescription() const { return description; }
 		void setDescription(const std::string& str) { description = str; }
 
+	protected:
+		template <typename T>
+		T safeGetAsAny(const std::string& name, const std::function<std::any()>& call) const
+		{
+			if (std::type_index(typeid(T)) == getTypeIndex())
+			{
+				try
+				{
+					return std::any_cast<T>(call());
+				}
+				catch (const std::bad_any_cast& e)
+				{
+					// Should never get here because we already did the type check!!
+					Log::Error().log("Unable to {} for \"{}\"! Any cast failed!", name, getName());
+					assert(false && "Any cast failed to turn type into T!");
+				}
+			}
+			else
+			{
+				Log::Error().log("Unable to {} for \"{}\"! Type T does not match propertie's type!", name, getName());
+				assert(false && "Type T does not propertie's return type!");
+			}
+
+			return T();
+		}
+
 	private:
 		std::string name;
 		std::string className;
@@ -184,6 +210,11 @@ namespace Meta
 		}
 
 		virtual std::any invoke(MetaObjSignature obj, const std::vector<std::any>& args) const = 0;
+		template <typename T>
+		T invokeAsType(MetaObjSignature obj, const std::vector<std::any>& args) const
+		{
+			return Prop::safeGetAsAny<T>("invokeAsType", [&obj, &args, this]() { return invoke(obj, args); });
+		}
 
 		void setDefaultArgs(const std::vector<std::any>& args) { defaultArgs = args; };
 		// Assuming you won't invoke with default args when the function takes no args...
@@ -198,6 +229,11 @@ namespace Meta
 			}
 
 			return std::any();
+		}
+		template <typename T>
+		T invokeDefaultArgsAsType(MetaObjSignature obj) const
+		{
+			return Prop::safeGetAsAny<T>("invokeDefaultArgsAsType", [&obj, this]() { return invokeDefaultArgs(obj); });
 		}
 
 	private:
@@ -307,26 +343,7 @@ namespace Meta
 		template <typename T>
 		T getAsType(const MetaObject& obj) const
 		{
-			if (std::type_index(typeid(T)) == getTypeIndex())
-			{
-				try
-				{
-					return std::any_cast<T>(getAsAny(obj));
-				}
-				catch (const std::bad_any_cast& e)
-				{
-					// Should never get here because we already did the type check!!
-					Log::Error().log("Unable to getAsType for \"{}\"! Any cast failed!", getName());
-					assert(false && "Any cast failed to turn type into T!");
-				}
-			}
-			else
-			{
-				Log::Error().log("Unable to getAsType for \"{}\"! Type T does not match propertie's type!", getName());
-				assert(false && "Type T does not match propertie's type!");
-			}
-
-			return T();
+			return Prop::safeGetAsAny<T>("getAsType", [&obj, this]() { return getAsAny(obj); });
 		}
 
 	private:
