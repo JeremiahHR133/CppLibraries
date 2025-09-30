@@ -13,9 +13,6 @@
 
 #include <Logger/Logger.h>
 
-// TODO: Make the fuction property base class generic based on a bool template parameter
-//       that modifies a using clause to edit the function signature!
-
 // Declare an object as exported to the meta system
 // Use this in the class definition, as shown: 
 //		class ExampleStruct : public Meta::MetaObject
@@ -178,7 +175,7 @@ namespace Meta
 			else
 			{
 				Log::Error().log("Unable to {} for \"{}\"! Type T does not match propertie's type!", name, getName());
-				assert(false && "Type T does not propertie's return type!");
+				assert(false && "Type T does not match propertie's type!");
 			}
 
 			return T();
@@ -351,12 +348,6 @@ namespace Meta
 		bool readOnly;
 	};
 
-	namespace Impl
-	{
-		template<typename T>
-		class MetaInitializer;
-	}
-
 	// The templated base for all member properties
 	// Handles basic typeinfo operations shared between properties
 	template<class ClassType, typename MemberType>
@@ -411,11 +402,17 @@ namespace Meta
 			}
 			else
 			{
-				Log::Error().log("Failed to setFromAny for \"{}\"! Property does not belong to given object!", getName());
+				Log::Error().log("Failed to setFromAny! Property \"{}\" belongs to \"{}\" but given \"{}\"!", Prop::getName(), Prop::getClassName(), obj.getTypeName());
 				assert(false && "Property does not belong to given object!");
 			}
 		}
 	};
+
+	namespace Impl
+	{
+		template<typename ClassType>
+		class MetaInitializer;
+	}
 
 	// A simple member property that operates off of a pointer to a class member
 	template<class ClassType, typename MemberType>
@@ -467,12 +464,9 @@ namespace Meta
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
-	namespace Impl
-	{
-		template<typename ClassType>
-		class MetaInitializer;
-	}
-
+	// Base for property setters
+	// Uses CRTP so that it can return a reference to the derived class
+	// which allows functions to be chained.
 	template<typename PS>
 	class PropSetter
 	{
@@ -521,7 +515,7 @@ namespace Meta
 		friend class Impl::MetaInitializer;
 
 		FunctionPropSetter(MemberFunctionPropBase<isConst>* prop)
-			: PropSetter<FunctionPropSetter>(prop)
+			: PropSetter<FunctionPropSetter<isConst, Args...>>(prop)
 			, fprop(prop)
 		{
 		}
@@ -533,7 +527,7 @@ namespace Meta
 			if (fprop)
 				fprop->setDefaultArgs(std::vector<std::any>{args...});
 			else
-				PropSetter<FunctionPropSetter<isConst, Args...>>::pointerFailed();
+				this->pointerFailed();
 
 			return *this;
 		}
@@ -567,7 +561,7 @@ namespace Meta
 			if (mprop)
 				mprop->setDefault(std::any(val));
 			else
-				PropSetter<MemberPropSetter<PType>>::pointerFailed();
+				this->pointerFailed();
 
 			return *this;
 		}
@@ -577,7 +571,7 @@ namespace Meta
 			if (mprop)
 				mprop->setReadOnly();
 			else
-				PropSetter<MemberPropSetter<PType>>::pointerFailed();
+				this->pointerFailed();
 
 			return *this;
 		}
@@ -698,12 +692,12 @@ namespace Meta
 			MetaInitializer(const std::string& name)
 				: m_classPtr(nullptr)
 			{
-				addDelayInitialize([name, this]()
+				::Meta::Impl::addDelayInitialize([name, this]()
 					{
 						m_classPtr = new ClassMeta<ClassType>(name);
 						if (m_classPtr)
 						{
-							addClass(m_classPtr);
+							::Meta::Impl::addClass(m_classPtr);
 							ClassType::initMeta(*this);
 						}
 						else
