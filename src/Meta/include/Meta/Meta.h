@@ -13,6 +13,11 @@
 
 #include <Logger/Logger.h>
 
+// TODO: Add some ways of printing an objects meta info out
+//       Should be sufficient for now to just be able to log it
+//       Storing it to a file would be implementation specific
+//       and should be left to the library that does the fileIO
+
 // Declare an object as exported to the meta system
 // Use this in the class definition, as shown: 
 //		class ExampleStruct : public Meta::MetaObject
@@ -116,12 +121,43 @@ namespace Meta
 		template <typename T, typename C>
 		struct is_member_getter_function_pointer<T, C, T (C::*)(void) const> : std::true_type {};
 
+		//
+		// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+		// General Template Support
+		// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+		//
+
 		template <typename... Ts>
 		std::string pack_as_type_names()
 		{
 			std::string ret;
 			((ret += (ret.empty() ? "" : ", ") + std::string(std::type_index(typeid(Ts)).name())), ...);
 			return ret;
+		}
+
+		template <typename T>
+		T safeOperationToType(const std::string& operationName, const std::string& objName, const std::type_index& type, const std::function<std::any()>& call)
+		{
+			if (std::type_index(typeid(T)) == type)
+			{
+				try
+				{
+					return std::any_cast<T>(call());
+				}
+				catch (const std::bad_any_cast& e)
+				{
+					// Should never get here because we already did the type check!!
+					Log::Error().log("Unable to {} for \"{}\"! Any cast failed!", operationName, objName);
+					assert(false && "Any cast failed to turn type into T!");
+				}
+			}
+			else
+			{
+				Log::Error().log("Unable to {0} for \"{1}\"! Type T does not match {0}'s type!", operationName, objName);
+				assert(false && "Type T does not match type-index!");
+			}
+
+			return T();
 		}
 	}
 
@@ -155,32 +191,6 @@ namespace Meta
 		const std::string& getDescription() const { return description; }
 		void setDescription(const std::string& str) { description = str; }
 
-	protected:
-		template <typename T>
-		T safeGetAsAny(const std::string& name, const std::function<std::any()>& call) const
-		{
-			if (std::type_index(typeid(T)) == getTypeIndex())
-			{
-				try
-				{
-					return std::any_cast<T>(call());
-				}
-				catch (const std::bad_any_cast& e)
-				{
-					// Should never get here because we already did the type check!!
-					Log::Error().log("Unable to {} for \"{}\"! Any cast failed!", name, getName());
-					assert(false && "Any cast failed to turn type into T!");
-				}
-			}
-			else
-			{
-				Log::Error().log("Unable to {} for \"{}\"! Type T does not match propertie's type!", name, getName());
-				assert(false && "Type T does not match propertie's type!");
-			}
-
-			return T();
-		}
-
 	private:
 		std::string name;
 		std::string className;
@@ -210,7 +220,7 @@ namespace Meta
 		template <typename T>
 		T invokeAsType(MetaObjSignature obj, const std::vector<std::any>& args) const
 		{
-			return Prop::safeGetAsAny<T>("invokeAsType", [&obj, &args, this]() { return invoke(obj, args); });
+			return Impl::safeOperationToType<T>("invokeAsType", getName(), getTypeIndex(), [&obj, &args, this]() { return invoke(obj, args); });
 		}
 
 		void setDefaultArgs(const std::vector<std::any>& args) { defaultArgs = args; };
@@ -230,7 +240,7 @@ namespace Meta
 		template <typename T>
 		T invokeDefaultArgsAsType(MetaObjSignature obj) const
 		{
-			return Prop::safeGetAsAny<T>("invokeDefaultArgsAsType", [&obj, this]() { return invokeDefaultArgs(obj); });
+			return Impl::safeOperationToType<T>("invokeDefaultArgsAsType", getName(), getTypeIndex(), [&obj, this]() { return invokeDefaultArgs(obj); });
 		}
 
 	private:
@@ -324,6 +334,7 @@ namespace Meta
 		virtual void setFromAny(MetaObject& obj, const std::any& val) const = 0;
 
 		void setDefault(const std::any& val) { defaultValue = val; }
+		bool hasDefault() const { return defaultValue.has_value(); }
 		void setReadOnly() { readOnly = true; }
 		bool getReadOnly() const { return readOnly; }
 		void applyDefault(MetaObject& obj) const
@@ -340,7 +351,7 @@ namespace Meta
 		template <typename T>
 		T getAsType(const MetaObject& obj) const
 		{
-			return Prop::safeGetAsAny<T>("getAsType", [&obj, this]() { return getAsAny(obj); });
+			return Impl::safeOperationToType<T>("getAsType", getName(), getTypeIndex(), [&obj, this]() { return getAsAny(obj); });
 		}
 
 	private:
@@ -605,6 +616,7 @@ namespace Meta
 		}
 		virtual ~ClassMetaBase() = default;
 
+		virtual std::any createAsAny() const = 0;
 		virtual std::any createDefaultAsAny() const = 0;
 		virtual std::type_index getTypeIndex() const = 0;
 
@@ -615,6 +627,18 @@ namespace Meta
 		const MemberNonConstFunctionPropBase* getNonConstFunc(const std::string& name) const;
 		const std::vector<const MemberConstFunctionPropBase*> getConstFuncs() const { return constFunctions; }
 		const MemberConstFunctionPropBase* getConstFunc(const std::string& name) const;
+
+		template <typename T>
+		T createAsType()
+		{
+			return Impl::safeOperationToType<T>("createAsType", getName(), getTypeIndex(), [this]() { return createAsAny(); });
+		}
+
+		template <typename T>
+		T createDefaultAsType()
+		{
+			return Impl::safeOperationToType<T>("createDefaultAsType", getName(), getTypeIndex(), [this]() { return createDefaultAsAny(); });
+		}
 
 	private:
 		std::string name;
@@ -637,9 +661,19 @@ namespace Meta
 		{
 		}
 
-		std::any createDefaultAsAny() const
+		std::any createAsAny() const
 		{
 			return std::any(ClassType());
+		}
+
+		std::any createDefaultAsAny() const
+		{
+			ClassType obj;
+			for (const Meta::MemberPropertyBase* prop : getMemberProps())
+				if (prop->hasDefault())
+					prop->applyDefault(obj);
+
+			return std::any(obj);
 		}
 
 		std::type_index getTypeIndex() const
