@@ -18,6 +18,12 @@
 //       Storing it to a file would be implementation specific
 //       and should be left to the library that does the fileIO
 
+// TODO: Don't actually add the parents props to the derived vector
+//       Remove all getters to the vector and add functionality to iterate over
+//       the derived and base props recursively.
+//       Add compile time check to make sure the class we are claiming to be derived from
+//       is a valid meta class and that we actually do subclass it.
+
 #define _DECLARE_META_OBJECT(classname, pclassname) \
 	private: \
 		friend Meta::Impl::MetaInitializer<classname>; \
