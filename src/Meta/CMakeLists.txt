@@ -28,6 +28,14 @@ target_compile_definitions(${PROJECT_NAME}
     META_LIB
 )
 
+if (MSVC)
+	# MSVC has weird default preprocessor behavior when expanding __VA_ARGS__
+	target_compile_options(${PROJECT_NAME}
+		PUBLIC
+		/Zc:preprocessor
+	)
+endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
 
 install(TARGETS ${PROJECT_NAME}

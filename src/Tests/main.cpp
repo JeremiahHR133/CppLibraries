@@ -5,10 +5,32 @@
 #include <iostream>
 
 
-
-class ExampleStruct : public Meta::MetaObject
+class ExampleStructBase : public Meta::MetaObject
 {
-	DECLARE_META_OBJECT(ExampleStruct)
+	DECLARE_META_OBJECT(ExampleStructBase)
+public:
+	ExampleStructBase()
+		: zero(0)
+	{
+	}
+	ExampleStructBase(int i)
+		: zero(i)
+	{
+	}
+private:
+	int zero;
+};
+
+IMPLEMENT_META_OBJECT(ExampleStructBase)
+{
+	w.addMember<&ExampleStructBase::zero>("zero")
+		.setDescription("Test description zero!")
+		.setDefault(0);
+}
+
+class ExampleStruct : public ExampleStructBase
+{
+	DECLARE_META_OBJECT(ExampleStruct, ExampleStructBase)
 public:
 	ExampleStruct()
 		: one(0)
@@ -17,7 +39,8 @@ public:
 	{
 	}
 	ExampleStruct(int i, bool b, float f)
-		: one(i)
+		: ExampleStructBase(i * 2)
+		, one(i)
 		, two(b)
 		, three(f)
 	{

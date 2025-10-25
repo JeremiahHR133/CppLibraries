@@ -10,7 +10,7 @@ namespace
 		MetaInfoRepo() = default;
 		~MetaInfoRepo() = default;
 
-		void addClass(Meta::ClassMetaBase* newClass);
+		void addClass(const Meta::ClassMetaBase* newClass);
 		const std::vector<const Meta::ClassMetaBase*>& getAllClasses()
 		{
 			return m_allClasses;
@@ -20,7 +20,7 @@ namespace
 		std::vector<const Meta::ClassMetaBase*> m_allClasses;
 	};
 
-	void MetaInfoRepo::addClass(Meta::ClassMetaBase* newClass)
+	void MetaInfoRepo::addClass(const Meta::ClassMetaBase* newClass)
 	{
 		if (!newClass)
 		{
@@ -48,18 +48,59 @@ namespace
 		return s_metaInfo;
 	}
 
-	std::vector<std::function<void()>> g_globalMetaCallback;
-	std::mutex g_metaVecMutex;
+	std::vector<std::function<void()>> g_addClassCallbacks;
+	std::mutex g_addClassVecMutex;
+
+	std::vector<std::function<void()>> g_parentInitCallbacks;
+	std::mutex g_parentInitVecMutex;
+
+	std::vector<std::function<void()>> g_metaInitCallbacks;
+	std::mutex g_metaInitVecMutex;
 }
 
 namespace Meta
 {
+	bool MetaObject::isOrIsDerivedFrom(std::type_index idx) const
+	{
+		const ClassMetaBase* ptr = Meta::getClassMeta(getTypeName());
+		while (ptr)
+		{
+			if (ptr->getTypeIndex() == idx)
+				return true;
+
+			ptr = ptr->getParent();
+		}
+
+		return false;
+	}
+
 	void initializeMetaInfo()
 	{
-		std::lock_guard<std::mutex> lock(g_metaVecMutex);
-		for (auto& func : g_globalMetaCallback)
+		// Register all classes
 		{
-			func();
+			std::lock_guard<std::mutex> lock(g_addClassVecMutex);
+			for (auto& func : g_addClassCallbacks)
+			{
+				func();
+			}
+		}
+
+		// Initialize all meta info
+		{
+			std::lock_guard<std::mutex> lock(g_metaInitVecMutex);
+			for (auto& func : g_metaInitCallbacks)
+			{
+				func();
+			}
+		}
+
+		// Update meta info based on parent meta
+		{
+			std::lock_guard<std::mutex> lock(g_parentInitVecMutex);
+			for (auto& func : g_parentInitCallbacks)
+			{
+				func();
+			}
 		}
 	}
 
@@ -120,15 +161,27 @@ namespace Meta
 
 	namespace Impl
 	{
-		void addClass(ClassMetaBase* c)
+		void addClass(const ClassMetaBase* c)
 		{
 			getGlobalMeta().addClass(c);
 		}
 
-		void addDelayInitialize(std::function<void()> call)
+		void addDelayClass(std::function<void()> call)
 		{
-			std::lock_guard<std::mutex> lock(g_metaVecMutex);
-			g_globalMetaCallback.push_back(call);
+			std::lock_guard<std::mutex> lock(g_addClassVecMutex);
+			g_addClassCallbacks.push_back(call);
+		}
+
+		void addDelayParentInitialize(std::function<void()> call)
+		{
+			std::lock_guard<std::mutex> lock(g_parentInitVecMutex);
+			g_parentInitCallbacks.push_back(call);
+		}
+
+		void addDelayMetaInitialize(std::function<void()> call)
+		{
+			std::lock_guard<std::mutex> lock(g_metaInitVecMutex);
+			g_metaInitCallbacks.push_back(call);
 		}
 	}
 }

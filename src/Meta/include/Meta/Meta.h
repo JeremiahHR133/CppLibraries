@@ -18,22 +18,43 @@
 //       Storing it to a file would be implementation specific
 //       and should be left to the library that does the fileIO
 
+#define _DECLARE_META_OBJECT(classname, pclassname) \
+	private: \
+		friend Meta::Impl::MetaInitializer<classname>; \
+		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
+		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
+	public: \
+		/* Provide static and non-static. These static functions are helpful to avoid using strings to reference a class name. */ \
+		/* This allows a compiler error to be generated if the class name gets changed, or a non-meta class name is used. */ \
+		static std::type_index s_getTypeIndex() { return std::type_index(typeid(classname)); } \
+		static std::string s_getTypeName() { return #classname; } \
+		static std::string s_getParentTypeName() { return #pclassname; } \
+		std::type_index getTypeIndex() const override { return s_getTypeIndex(); } \
+		std::string getTypeName() const override { return s_getTypeName(); } \
+		std::string getParentTypeName() const override { return s_getParentTypeName(); }
+
+#define _IMPLEMENT_META_OBJECT(classname) \
+	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
+	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
+	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname, classname::s_getParentTypeName()); \
+	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
+
+#define _DECLARE_META_OBJECT_NO_PARENT(classname)  _DECLARE_META_OBJECT(classname, Meta::Impl::NoParent)
+#define _DECLARE_META_OBJECT_PARENT(classname, pclassname)  _DECLARE_META_OBJECT(classname, pclassname)
+
+#define GET_3RD_ARG(arg1, arg2, arg3, ...) arg3
+#define META_DECLARE_MACRO_CHOOSER(...) \
+	GET_3RD_ARG(__VA_ARGS__, _DECLARE_META_OBJECT_PARENT, _DECLARE_META_OBJECT_NO_PARENT, )
+
 // Declare an object as exported to the meta system
 // Use this in the class definition, as shown: 
 //		class ExampleStruct : public Meta::MetaObject
 //		{
 //			DECLARE_META_OBJECT(ExampleStruct)
 //		public:
-//          ...
+//			<your code here>
 //		};
-#define DECLARE_META_OBJECT(classname) \
-	private: \
-		friend Meta::Impl::MetaInitializer<classname>; \
-		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
-		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
-	public: \
-		std::type_index getTypeIndex() const override; \
-		std::string getTypeName() const override;
+#define DECLARE_META_OBJECT(...) META_DECLARE_MACRO_CHOOSER(__VA_ARGS__)(__VA_ARGS__)
 
 // Implement an object that has been declared as a meta object
 // Use this in the class implementation, as shown:
@@ -44,14 +65,8 @@
 // 			w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three");
 // 			w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 // 		}
-//		ExampleStruct::ExampleStruct() = default;
-#define IMPLEMENT_META_OBJECT(classname) \
-	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
-	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
-	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname); \
-	std::type_index classname::getTypeIndex() const { return std::type_index(typeid(classname)); } \
-	std::string classname::getTypeName() const { return #classname; } \
-	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
+//		<your code here>
+#define IMPLEMENT_META_OBJECT(classname) _IMPLEMENT_META_OBJECT(classname)
 
 // Simple meta system
 // Works off of properties added via the imlementation macro
@@ -161,10 +176,39 @@ namespace Meta
 		}
 	}
 
+	//
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	// Global Functions
+	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+	//
+
+	// Forward declaration
+	class ClassMetaBase;
+
+	// Call this function once at the start of the program to initialize all meta info
+	// from any loaded libraries
+	// This function is here to defer meta-initialization until after logging has been
+	// initialized and shared libraries have been loaded.
+	META_EXPORT void initializeMetaInfo();
+
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
+	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
+	META_EXPORT const ClassMetaBase* getClassMeta(const std::string& name);
+	// Get a pointer to a classes meta info
+	// Returns nullptr if the class was not found
+	template<typename T>
+	const ClassMetaBase* getClassMeta()
+	{
+		return getClassMeta(std::type_index(typeid(T)));
+	}
+
 	// The Meta Object!
 	// The base of all classes exposed to the meta system.
 	// Make sure any types exposed to the meta system subclass MetaObject
-	class MetaObject
+	class META_EXPORT MetaObject
 	{
 	public:
 		MetaObject() = default;
@@ -172,6 +216,9 @@ namespace Meta
 
 		virtual std::type_index getTypeIndex() const = 0;
 		virtual std::string getTypeName() const = 0;
+		virtual std::string getParentTypeName() const = 0;
+
+		bool isOrIsDerivedFrom(std::type_index idx) const;
 	};
 
 	// Base class for all properties
@@ -275,7 +322,7 @@ namespace Meta
 				return std::any();
 			}
 
-			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			if (obj.isOrIsDerivedFrom(std::type_index(typeid(ClassType))))
 			{
 				try
 				{
@@ -378,7 +425,7 @@ namespace Meta
 
 		std::any getAsAny(const MetaObject& obj) const override
 		{
-			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			if (obj.isOrIsDerivedFrom(std::type_index(typeid(ClassType))))
 			{
 				return std::any(get(static_cast<const ClassType&>(obj)));
 			}
@@ -399,7 +446,7 @@ namespace Meta
 				return;
 			}
 
-			if (obj.getTypeIndex() == std::type_index(typeid(ClassType)))
+			if (obj.isOrIsDerivedFrom(std::type_index(typeid(ClassType))))
 			{
 				try
 				{
@@ -609,9 +656,13 @@ namespace Meta
 	class META_EXPORT ClassMetaBase
 	{
 	public:
-		ClassMetaBase(const std::string& name)
-			: name(name)
+		ClassMetaBase(const std::string& name, const std::string& parentName)
+			: name{ name }
+			, parentName{ parentName }
 			, props{}
+			, nonConstFunctions{}
+			, constFunctions{}
+			, parent{ nullptr }
 		{
 		}
 		virtual ~ClassMetaBase() = default;
@@ -621,12 +672,14 @@ namespace Meta
 		virtual std::type_index getTypeIndex() const = 0;
 
 		const std::string& getName() const { return name; }
+		const std::string& getParentName() const { return parentName; }
 		const std::vector<const MemberPropertyBase*> getMemberProps() const { return props; }
 		const MemberPropertyBase* getMemberProp(const std::string& name) const;
 		const std::vector<const MemberNonConstFunctionPropBase*> getNonConstFuncs() const { return nonConstFunctions; }
 		const MemberNonConstFunctionPropBase* getNonConstFunc(const std::string& name) const;
 		const std::vector<const MemberConstFunctionPropBase*> getConstFuncs() const { return constFunctions; }
 		const MemberConstFunctionPropBase* getConstFunc(const std::string& name) const;
+		const ClassMetaBase* getParent() const { return parent; }
 
 		template <typename T>
 		T createAsType()
@@ -642,9 +695,11 @@ namespace Meta
 
 	private:
 		std::string name;
+		std::string parentName;
 		std::vector<const MemberPropertyBase*> props;
 		std::vector<const MemberNonConstFunctionPropBase*> nonConstFunctions;
 		std::vector<const MemberConstFunctionPropBase*> constFunctions;
+		const ClassMetaBase* parent;
 
 		template<typename T> friend class Impl::MetaInitializer;
 	};
@@ -656,8 +711,8 @@ namespace Meta
 	public:
 		using ClassType = C;
 
-		ClassMeta(const std::string& name)
-			: ClassMetaBase(name)
+		ClassMeta(const std::string& name, const std::string& parentName)
+			: ClassMetaBase(name, parentName)
 		{
 		}
 
@@ -684,61 +739,93 @@ namespace Meta
 
 	//
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-	// Global Functions
-	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-	//
-
-	// Call this function once at the start of the program to initialize all meta info
-	// from any loaded libraries
-	// This function is here to defer meta-initialization until after logging has been
-	// initialized and shared libraries have been loaded.
-	META_EXPORT void initializeMetaInfo();
-
-	// Get a pointer to a classes meta info
-	// Returns nullptr if the class was not found
-	META_EXPORT const ClassMetaBase* getClassMeta(const std::type_index& index);
-	// Get a pointer to a classes meta info
-	// Returns nullptr if the class was not found
-	META_EXPORT const ClassMetaBase* getClassMeta(const std::string& name);
-	// Get a pointer to a classes meta info
-	// Returns nullptr if the class was not found
-	template<typename T>
-	const ClassMetaBase* getClassMeta()
-	{
-		return getClassMeta(std::type_index(typeid(T)));
-	}
-
-	//
-	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	// Implementation Details
 	// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	//
 
 	namespace Impl
 	{
-		META_EXPORT void addClass(ClassMetaBase* c);
-		META_EXPORT void addDelayInitialize(std::function<void()> call);
+		META_EXPORT void addClass(const ClassMetaBase* c);
+		META_EXPORT void addDelayClass(std::function<void()> call);
+		META_EXPORT void addDelayParentInitialize(std::function<void()> call);
+		META_EXPORT void addDelayMetaInitialize(std::function<void()> call);
 
 		template<typename ClassType>
 		class MetaInitializer
 		{
 		public:
-			MetaInitializer(const std::string& name)
+			MetaInitializer(const std::string& name, const std::string& parentName)
 				: m_classPtr(nullptr)
 			{
-				::Meta::Impl::addDelayInitialize([name, this]()
+				::Meta::Impl::addDelayClass([name, parentName, this]()
 					{
-						m_classPtr = new ClassMeta<ClassType>(name);
+						m_classPtr = new ClassMeta<ClassType>(name, parentName);
 						if (m_classPtr)
 						{
 							::Meta::Impl::addClass(m_classPtr);
-							ClassType::initMeta(*this);
 						}
 						else
 						{
 							Log::Critical().log("Unable to allocate new ClassMeta for \"{}\"!", name);
 							assert(m_classPtr);
 						}
+					}
+				);
+
+				::Meta::Impl::addDelayMetaInitialize([this]()
+					{
+						if (!m_classPtr)
+						{
+							assert(m_classPtr);
+							return;
+						}
+						ClassType::initMeta(*this);
+					}
+				);
+
+				::Meta::Impl::addDelayParentInitialize([this]()
+					{
+						if (!m_classPtr)
+						{
+							assert(m_classPtr);
+							return;
+						}
+						if (m_classPtr->getParentName() != "Meta::Impl::NoParent")
+						{
+							if (const auto* parent = ::Meta::getClassMeta(m_classPtr->getParentName()))
+							{
+								m_classPtr->parent = parent;
+								// Copy parent props into this class
+								// TODO: This is duplication that can be avoided, but the optimization requires complex storage of props that I don't want to tackle yet
+								for (const auto* prop : parent->getMemberProps())
+								{
+									auto found = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
+									if (found == m_classPtr->props.end())
+										m_classPtr->props.push_back(prop);
+								}
+								for (const auto* prop : parent->getConstFuncs())
+								{
+									auto found = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
+									if (found == m_classPtr->constFunctions.end())
+										m_classPtr->constFunctions.push_back(prop);
+								}
+								for (const auto* prop : parent->getNonConstFuncs())
+								{
+									auto found = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
+									if (found == m_classPtr->nonConstFunctions.end())
+										m_classPtr->nonConstFunctions.push_back(prop);
+								}
+								Log::Debug().log("Added parent \"{}\" for class \"{}\"", m_classPtr->getParentName(), m_classPtr->getName());
+							}
+							else
+							{
+								Log::Critical().log("Specified parent \"{}\", of class \"{}\" was not found in the meta repo!", m_classPtr->getParentName(), m_classPtr->getName());
+								Log::Critical().log("Was it declared as a meta object?");
+								assert(false);
+							}
+						}
+						else
+							Log::Debug().log("No parent for class \"{}\"", m_classPtr->getName());
 					}
 				);
 			}
