@@ -21,8 +21,6 @@
 // TODO: Don't actually add the parents props to the derived vector
 //       Remove all getters to the vector and add functionality to iterate over
 //       the derived and base props recursively.
-//       Add compile time check to make sure the class we are claiming to be derived from
-//       is a valid meta class and that we actually do subclass it.
 
 #define _DECLARE_META_OBJECT(classname, pclassname) \
 	private: \
@@ -33,15 +31,20 @@
 		/* Provide static and non-static. These static functions are helpful to avoid using strings to reference a class name. */ \
 		/* This allows a compiler error to be generated if the class name gets changed, or a non-meta class name is used. */ \
 		static std::type_index s_getTypeIndex() { return std::type_index(typeid(classname)); } \
-		static std::string s_getTypeName() { return #classname; } \
-		static std::string s_getParentTypeName() { return #pclassname; } \
+		static constexpr std::string s_getTypeName() { return #classname; } \
+		static constexpr std::string s_getParentTypeName() { return #pclassname; } \
 		std::type_index getTypeIndex() const override { return s_getTypeIndex(); } \
 		std::string getTypeName() const override { return s_getTypeName(); } \
-		std::string getParentTypeName() const override { return s_getParentTypeName(); }
+		std::string getParentTypeName() const override { return s_getParentTypeName(); } \
+		/* For use only in non-evaluated contexts for template meta programming */ \
+		static pclassname s_getParentType();
 
 #define _IMPLEMENT_META_OBJECT(classname) \
 	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
 	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
+	static_assert((classname::s_getParentTypeName() == "Meta::Impl::NoParent") || \
+		((std::is_base_of_v<decltype(classname::s_getParentType()), classname>) && (std::is_base_of_v<Meta::MetaObject, decltype(classname::s_getParentType())>)) \
+		, "Class must subclass its provided parent, and the parent class must also be a meta object!"); \
 	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname, classname::s_getParentTypeName()); \
 	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
 
@@ -213,7 +216,6 @@ namespace Meta
 
 	// The Meta Object!
 	// The base of all classes exposed to the meta system.
-	// Make sure any types exposed to the meta system subclass MetaObject
 	class META_EXPORT MetaObject
 	{
 	public:
@@ -729,7 +731,7 @@ namespace Meta
 
 		std::any createDefaultAsAny() const
 		{
-			ClassType obj;
+			ClassType obj{};
 			for (const Meta::MemberPropertyBase* prop : getMemberProps())
 				if (prop->hasDefault())
 					prop->applyDefault(obj);
@@ -751,6 +753,11 @@ namespace Meta
 
 	namespace Impl
 	{
+		// A definition for this class needs to exist for some static_asserts to work
+		// but the class doesn't need to have anything in it
+		class NoParent
+		{
+		};
 		META_EXPORT void addClass(const ClassMetaBase* c);
 		META_EXPORT void addDelayClass(std::function<void()> call);
 		META_EXPORT void addDelayParentInitialize(std::function<void()> call);

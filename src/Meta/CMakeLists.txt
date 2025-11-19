@@ -20,7 +20,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Logger
-	Converter
 )
 
 target_compile_definitions(${PROJECT_NAME}
