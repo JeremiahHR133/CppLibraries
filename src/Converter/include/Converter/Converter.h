@@ -11,13 +11,25 @@
 #include <vector>
 #include <assert.h>
 
+// TODO: Document usage of this function.
+
 // Register a global converter for a type
 // A converter is a binding of a classname -> <toStringFunc, fromStringFunc>
 // Registering a type as a converter makes it available for the 
 // getStringForType and getTypeFromString functions
 // Only call this macro once per type.
-#define REGISTER_CONVERTER(classname, toStringFunc, fromStringFunc) \
-	Converter::Impl::registerConverter<classname>(#classname, toStringFunc, fromStringFunc);
+// C2011 should happen if a converter was declared for a type already
+#define DEFINE_CONVERTER_FOR_TYPE(classname) \
+	namespace Converter::Impl::Regs::Converter_ ## classname \
+	{ \
+		class ConverterTypeRegister \
+		{ \
+			static Converter::Impl::StaticConverterRegister<classname> s_reg;\
+		}; \
+	}
+
+#define REGISTER_CONVERTER_FOR_TYPE(classname, toStringFunc, fromStringFunc) \
+	Converter::Impl::StaticConverterRegister<classname> Converter::Impl::Regs::Converter_ ## classname::ConverterTypeRegister::s_reg(#classname, toStringFunc, fromStringFunc);\
 
 // Library to convert from any registered type to a string and vice versa
 // See the REGISTER_CONVERTER macro for how to register a type
@@ -63,6 +75,18 @@ namespace Converter
 				}
 			);
 		}
+
+		template<typename T>
+		class StaticConverterRegister
+		{
+		public:
+			StaticConverterRegister(const std::string& name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
+			{
+				::Converter::Impl::registerConverter(name, toString, fromString);
+			}
+			~StaticConverterRegister() = default;
+		};
+
 	}
 
 	// Call this funciton once at program initialization
@@ -109,3 +133,9 @@ namespace Converter
 	// Use a name lookup to convert val into a string using a registered converter
 	CONVERTER_EXPORT std::string getStringFromAny(const std::string& name, const std::any val);
 }
+
+DEFINE_CONVERTER_FOR_TYPE(int)
+DEFINE_CONVERTER_FOR_TYPE(float)
+DEFINE_CONVERTER_FOR_TYPE(double)
+DEFINE_CONVERTER_FOR_TYPE(bool)
+DEFINE_CONVERTER_FOR_TYPE(std::string)

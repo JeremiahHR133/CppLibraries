@@ -111,32 +111,6 @@ namespace Converter
 
 	void initializeConverters()
 	{
-		REGISTER_CONVERTER(
-			int, 
-			[](const int& i) { return std::to_string(i); },
-			[](const std::string& str) { return std::stoi(str); }
-		)
-		REGISTER_CONVERTER(
-			float, 
-			[](const float& f) { return std::to_string(f); },
-			[](const std::string& str) { return std::stof(str); }
-		)
-		REGISTER_CONVERTER(
-			double, 
-			[](const double& d) { return std::to_string(d); },
-			[](const std::string& str) { return std::stod(str); }
-		)
-		REGISTER_CONVERTER(
-			bool, 
-			[](const bool& b) { return std::to_string(b); },
-			[](const std::string& str) { return static_cast<bool>(std::stoi(str)); }
-		)
-		REGISTER_CONVERTER(
-			std::string, 
-			[](const std::string& str) { return str; },
-			[](const std::string& str) { return str; }
-		)
-
 		if (g_convertersRegistered)
 		{
 			Log::Warn().log("initializeConverters has already been called!");
@@ -162,3 +136,30 @@ namespace Converter
 		g_convertersRegistered = true;
 	}
 }
+
+REGISTER_CONVERTER_FOR_TYPE(
+	int, 
+	[](const int& i) { return std::to_string(i); },
+	[](const std::string& str) { return std::stoi(str); }
+)
+REGISTER_CONVERTER_FOR_TYPE(
+	float, 
+	[](const float& f) { return std::to_string(f); },
+	[](const std::string& str) { return std::stof(str); }
+)
+REGISTER_CONVERTER_FOR_TYPE(
+	double, 
+	[](const double& d) { return std::to_string(d); },
+	[](const std::string& str) { return std::stod(str); }
+)
+REGISTER_CONVERTER_FOR_TYPE(
+	bool, 
+	[](const bool& b) { return b ? "true" : "false"; },
+	[](const std::string& str) { return str == "true" ? true : false; }
+)
+REGISTER_CONVERTER_FOR_TYPE(
+	std::string, 
+	[](const std::string& str) { return str; },
+	[](const std::string& str) { return str; }
+)
+
