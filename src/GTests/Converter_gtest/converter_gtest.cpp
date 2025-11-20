@@ -199,7 +199,7 @@ TEST_F(ConverterTest, UserDefinedType)
 
 TEST_F(ConverterTest, MinConvertersRegistered)
 {
-	// 12 specified by Converter lib, 1 user defined type
+	// 12 specified by Converter lib, 1 custom type in this test
 	constexpr int numConverters = 12 + 1;
 	ASSERT_GE(Converter::Impl::getRegisteredConverters().size(), numConverters) << "Some expected converters were not registered!";
 	ASSERT_EQ(Converter::Impl::getRegisteredConverters().size(), numConverters) << "A default converter is not being accounted for in this test! Add it!!";

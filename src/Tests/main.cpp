@@ -16,6 +16,8 @@ public:
 		: zero(i)
 	{
 	}
+
+	virtual void test() = 0;
 private:
 	int zero;
 };
@@ -44,6 +46,8 @@ public:
 		, three(f)
 	{
 	}
+
+	void test() override {}
 
 	void setThree(float val) { three = val; }
 	float getThree() const { return three; }

@@ -28,24 +28,25 @@
 		static Meta::Impl::MetaInitializer<classname> s_metaInit; \
 		static void initMeta(Meta::Impl::MetaInitializer<classname>& w); \
 	public: \
+		using MetaParentType = pclassname; \
 		/* Provide static and non-static. These static functions are helpful to avoid using strings to reference a class name. */ \
 		/* This allows a compiler error to be generated if the class name gets changed, or a non-meta class name is used. */ \
 		static std::type_index s_getTypeIndex() { return std::type_index(typeid(classname)); } \
 		static constexpr std::string s_getTypeName() { return #classname; } \
 		static constexpr std::string s_getParentTypeName() { return #pclassname; } \
+		static constexpr bool s_hasParent() { return !std::is_same_v<MetaParentType, Meta::Impl::NoParent>; } \
+		/* This sillyness is becasue you cannot specify pure virtual static functions */ \
+		/* I want to be able to call these functions via a pointer to the base but I also want them to be constexpr, hence the static duplication */ \
 		std::type_index getTypeIndex() const override { return s_getTypeIndex(); } \
 		std::string getTypeName() const override { return s_getTypeName(); } \
-		std::string getParentTypeName() const override { return s_getParentTypeName(); } \
-		/* For use only in non-evaluated contexts for template meta programming */ \
-		static pclassname s_getParentType();
+		std::string getParentTypeName() const override { return s_getParentTypeName(); }
 
 #define _IMPLEMENT_META_OBJECT(classname) \
 	static_assert(std::is_base_of_v<Meta::MetaObject, classname>, "Meta objects must subclass the Meta::MetaObject class!"); \
-	static_assert(std::is_default_constructible_v<classname>, "Class must be default constructible to use meta!"); \
-	static_assert((classname::s_getParentTypeName() == "Meta::Impl::NoParent") || \
-		((std::is_base_of_v<decltype(classname::s_getParentType()), classname>) && (std::is_base_of_v<Meta::MetaObject, decltype(classname::s_getParentType())>)) \
+	static_assert((!classname::s_hasParent()) || \
+		((std::is_base_of_v<classname::MetaParentType, classname>) && (std::is_base_of_v<Meta::MetaObject, classname::MetaParentType>)) \
 		, "Class must subclass its provided parent, and the parent class must also be a meta object!"); \
-	Meta::Impl::MetaInitializer<classname> classname::s_metaInit = Meta::Impl::MetaInitializer<classname>(#classname, classname::s_getParentTypeName()); \
+	Meta::Impl::MetaInitializer<classname> classname::s_metaInit(#classname, classname::s_getParentTypeName()); \
 	void classname::initMeta(Meta::Impl::MetaInitializer<classname>& w)
 
 #define _DECLARE_META_OBJECT_NO_PARENT(classname)  _DECLARE_META_OBJECT(classname, Meta::Impl::NoParent)
@@ -726,17 +727,27 @@ namespace Meta
 
 		std::any createAsAny() const
 		{
-			return std::any(ClassType());
+			if constexpr (std::is_default_constructible_v<ClassType>)
+			{
+				return std::any(ClassType());
+			}
+
+			return std::any();
 		}
 
 		std::any createDefaultAsAny() const
 		{
-			ClassType obj{};
-			for (const Meta::MemberPropertyBase* prop : getMemberProps())
-				if (prop->hasDefault())
-					prop->applyDefault(obj);
+			if constexpr (std::is_default_constructible_v<ClassType>)
+			{
+				ClassType obj{};
+				for (const Meta::MemberPropertyBase* prop : getMemberProps())
+					if (prop->hasDefault())
+						prop->applyDefault(obj);
 
-			return std::any(obj);
+				return std::any(obj);
+			}
+
+			return std::any();
 		}
 
 		std::type_index getTypeIndex() const
