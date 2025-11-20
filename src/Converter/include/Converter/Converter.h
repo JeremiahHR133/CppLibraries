@@ -19,17 +19,10 @@
 // getStringForType and getTypeFromString functions
 // Only call this macro once per type.
 // C2011 should happen if a converter was declared for a type already
-#define DEFINE_CONVERTER_FOR_TYPE(classname) \
-	namespace Converter::Impl::Regs::Converter_ ## classname \
-	{ \
-		class ConverterTypeRegister \
-		{ \
-			static Converter::Impl::StaticConverterRegister<classname> s_reg;\
-		}; \
-	}
-
 #define REGISTER_CONVERTER_FOR_TYPE(classname, toStringFunc, fromStringFunc) \
-	Converter::Impl::StaticConverterRegister<classname> Converter::Impl::Regs::Converter_ ## classname::ConverterTypeRegister::s_reg(#classname, toStringFunc, fromStringFunc);\
+	template<> \
+	Converter::Impl::StaticConverterRegister<classname> Converter::Impl::ConverterTypeRegister<classname>::s_reg{#classname, toStringFunc, fromStringFunc};
+	//::Converter::Impl::StaticConverterRegister<classname> Converter::Impl::Regs::Converter_ ## classname::ConverterTypeRegister::s_reg(#classname, toStringFunc, fromStringFunc);\
 
 // Library to convert from any registered type to a string and vice versa
 // See the REGISTER_CONVERTER macro for how to register a type
@@ -87,6 +80,11 @@ namespace Converter
 			~StaticConverterRegister() = default;
 		};
 
+		template<typename T>
+		class ConverterTypeRegister
+		{
+			static StaticConverterRegister<T> s_reg;
+		};
 	}
 
 	// Call this funciton once at program initialization
@@ -117,9 +115,9 @@ namespace Converter
 			catch (const std::bad_any_cast& e)
 			{
 				Log::Error().log(
-					"Unable to convert string to type; could not cast converter result to type: {}! "
-					"Attempted to use converter with name: {}",
-					std::type_index(typeid(T)), converter->name
+					"Unable to convert string to type; could not cast converter result to type: {1}! "
+					"Attempted to use converter with name: {1}",
+					std::type_index(typeid(T)).name(), converter->name
 				);
 				assert(false && "Caught bad any cast!");
 			}
@@ -129,13 +127,13 @@ namespace Converter
 	}
 
 	// Use a type index to convert val into a string using a registered converter
-	CONVERTER_EXPORT std::string getStringFromAny(const std::type_index& index, const std::any val);
+	CONVERTER_EXPORT std::string getStringFromAny(const std::type_index& index, const std::any& val);
 	// Use a name lookup to convert val into a string using a registered converter
-	CONVERTER_EXPORT std::string getStringFromAny(const std::string& name, const std::any val);
+	CONVERTER_EXPORT std::string getStringFromAny(const std::string& name, const std::any& val);
+	// Use a template type to convert val into a string using a registered converter
+	template<typename T>
+	std::string getStringFromAny(const std::any& val)
+	{
+		return getStringFromAny(std::type_index(typeid(T)), val);
+	}
 }
-
-DEFINE_CONVERTER_FOR_TYPE(int)
-DEFINE_CONVERTER_FOR_TYPE(float)
-DEFINE_CONVERTER_FOR_TYPE(double)
-DEFINE_CONVERTER_FOR_TYPE(bool)
-DEFINE_CONVERTER_FOR_TYPE(std::string)

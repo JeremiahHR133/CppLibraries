@@ -93,7 +93,7 @@ namespace Converter
 		}
 	}
 
-	std::string getStringFromAny(const std::type_index& index, const std::any val)
+	std::string getStringFromAny(const std::type_index& index, const std::any& val)
 	{
 		if (auto* converter = Impl::findConverter(index))
 			return Impl::getStrUsingConverter(*converter, val);
@@ -101,7 +101,7 @@ namespace Converter
 		return "";
 	}
 
-	std::string getStringFromAny(const std::string& name, const std::any val)
+	std::string getStringFromAny(const std::string& name, const std::any& val)
 	{
 		if (auto* converter = Impl::findConverter(name))
 			return Impl::getStrUsingConverter(*converter, val);
@@ -137,29 +137,35 @@ namespace Converter
 	}
 }
 
-REGISTER_CONVERTER_FOR_TYPE(
-	int, 
-	[](const int& i) { return std::to_string(i); },
-	[](const std::string& str) { return std::stoi(str); }
-)
-REGISTER_CONVERTER_FOR_TYPE(
-	float, 
-	[](const float& f) { return std::to_string(f); },
-	[](const std::string& str) { return std::stof(str); }
-)
-REGISTER_CONVERTER_FOR_TYPE(
-	double, 
-	[](const double& d) { return std::to_string(d); },
-	[](const std::string& str) { return std::stod(str); }
-)
+#define REGISTER_STANDARD_CONVERTER(type, fromStringFuncName) \
+	REGISTER_CONVERTER_FOR_TYPE( \
+		type, \
+		[](const type& v) { return std::to_string(v); }, \
+		[](const std::string& str) { return std::fromStringFuncName(str); } \
+	)
+
+REGISTER_STANDARD_CONVERTER(int, stoi)
+REGISTER_STANDARD_CONVERTER(long, stol)
+REGISTER_STANDARD_CONVERTER(long long, stoll)
+REGISTER_STANDARD_CONVERTER(unsigned int, stoul)
+REGISTER_STANDARD_CONVERTER(unsigned long, stoul)
+REGISTER_STANDARD_CONVERTER(unsigned long long, stoull)
+REGISTER_STANDARD_CONVERTER(float, stof)
+REGISTER_STANDARD_CONVERTER(double, stod)
+REGISTER_STANDARD_CONVERTER(long double, stold)
+
 REGISTER_CONVERTER_FOR_TYPE(
 	bool, 
 	[](const bool& b) { return b ? "true" : "false"; },
 	[](const std::string& str) { return str == "true" ? true : false; }
 )
 REGISTER_CONVERTER_FOR_TYPE(
+	char, 
+	[](const char& c) { return std::string(1, c); },
+	[](const std::string& str) -> char { return str.size() ? str[0] : 0; }
+)
+REGISTER_CONVERTER_FOR_TYPE(
 	std::string, 
 	[](const std::string& str) { return str; },
 	[](const std::string& str) { return str; }
 )
-

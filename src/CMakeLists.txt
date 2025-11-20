@@ -3,3 +3,4 @@ add_subdirectory(Converter)
 add_subdirectory(Meta)
 
 add_subdirectory(Tests)
+add_subdirectory(GTests)
