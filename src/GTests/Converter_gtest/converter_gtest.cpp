@@ -86,26 +86,43 @@ bool typeIsRegistered()
 	TEST_F(ConverterTest, funcName) \
 	{ \
 		ASSERT_TRUE(typeIsRegistered<type>()); \
-	\
 		type test = 0 ## suffix; \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test); \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test); \
-	 \
 		test = 10 ## suffix; \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test); \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test); \
-	 \
 		test = -10 ## suffix; \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test); \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test); \
-	 \
 		test = min; \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test); \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test); \
-	 \
 		test = max; \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test); \
 		EXPECT_EQ(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test); \
+	}
+
+#define TEST_FLOAT_LIKE(type, suffix, max, min, funcName) \
+	TEST_F(ConverterTest, funcName) \
+	{ \
+		ASSERT_TRUE(typeIsRegistered<type>()); \
+		type test = 0.0f; \
+		type nearEnough = min * 2; \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
+		test = 10.0f; \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
+		test = -10.0f; \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
+		test = max; \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
+		test = min; \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
+		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
 	}
 
 TEST_INT_LIKE(int, 0, INT_MAX, INT_MIN, Test_int)
@@ -115,36 +132,9 @@ TEST_INT_LIKE(unsigned int, u, UINT_MAX, 0, Test_unsigned_int)
 TEST_INT_LIKE(unsigned long, ul, ULONG_MAX, 0, Test_unsigned_long)
 TEST_INT_LIKE(unsigned long long, ull, ULLONG_MAX, 0, Test_unsigned_long_long)
 
-#define TEST_FLOAT_LIKE(type, suffix, max, min, funcName) \
-	TEST_F(ConverterTest, funcName) \
-	{ \
-		ASSERT_TRUE(typeIsRegistered<type>()); \
- \
-		type test = 0.0f; \
-		type nearEnough = 1e-20; \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
- \
-		test = 10.0f; \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
- \
-		test = -10.0f; \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
- \
-		test = max; \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
- \
-		test = min; \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringForType(test)), test, nearEnough); \
-		EXPECT_NEAR(Converter::getTypeFromString<type>(Converter::getStringFromAny<type>(std::any(test))), test, nearEnough); \
-	}
-
 TEST_FLOAT_LIKE(float, f, FLT_MAX, FLT_MIN, Test_float)
-TEST_FLOAT_LIKE(double, d, DBL_MAX, DBL_MIN, Test_double)
-TEST_FLOAT_LIKE(long double, ld, DBL_MAX, DBL_MIN, Test_long_double)
+TEST_FLOAT_LIKE(double, d, DBL_MAX, DBL_MIN,Test_double)
+TEST_FLOAT_LIKE(long double, ld, LDBL_MAX, LDBL_MIN, Test_long_double)
 
 TEST_F(ConverterTest, Test_bool)
 {
