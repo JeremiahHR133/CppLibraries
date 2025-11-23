@@ -313,6 +313,7 @@ namespace Meta
 	public:
 		using ClassTypeSignature = std::conditional_t<isConst, const ClassType&, ClassType&>;
 		using FunctionSignature  = std::conditional_t<isConst, ReturnType (ClassType::*)(Args...) const, ReturnType (ClassType::*)(Args...)>;
+		using InvokeReturnType   = std::conditional_t<std::is_same_v<ReturnType, void>, void, std::any>;
 
 		MemberFunctionProp(const std::string& name, const std::string& className, FunctionSignature func)
 			: MemberFunctionPropBase<isConst>(name, className)
@@ -335,7 +336,11 @@ namespace Meta
 			{
 				try
 				{
-					return invoke_impl<Args...>(static_cast<ClassTypeSignature>(obj), args, std::index_sequence_for<Args...>{});
+					if constexpr (!std::is_same_v<InvokeReturnType, void>)
+						return invoke_impl<Args...>(static_cast<ClassTypeSignature>(obj), args, std::index_sequence_for<Args...>{});
+
+					invoke_impl<Args...>(static_cast<ClassTypeSignature>(obj), args, std::index_sequence_for<Args...>{});
+					return std::any();
 				}
 				catch (const std::bad_any_cast& e)
 				{
@@ -359,9 +364,14 @@ namespace Meta
 
 	private:
 		template <typename... Args, std::size_t... Is>
-		std::any invoke_impl(ClassTypeSignature obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
+		InvokeReturnType invoke_impl(ClassTypeSignature obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
 		{
-			return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
+			if constexpr (!std::is_same_v<InvokeReturnType, void>)
+			{
+				return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
+			}
+
+			(obj.*func)(std::any_cast<Args>(args[Is])...);
 		}
 
 		FunctionSignature func;
