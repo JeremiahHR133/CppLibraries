@@ -15,9 +15,10 @@ I haven't tested this project on Linux yet, but I do plan to. Nothing about this
 * C++ 23 (mostly just for std::format)
 * CMake 3.24 +
 
-## Library Overview
 
-### Logger
+
+
+## Logger
 
 The logger library is essentially a wrapper to std::print. Logs are made by instantiating one of the log level classes (Debug, Info, Warn, Error, Critical) and calling .log() on them.
 The syntax for the .log() call matches the syntax for std::print.
@@ -34,7 +35,10 @@ int main()
 ```
 See `src/Tests/main.cpp` for more examples of how to use the logging library.
 
-### Converter
+
+
+
+## Converter
 
 The converter library is a library for defining toString and fromString converters for any type. Converters for all the primitive types are automatically provided by the library.
 Similar to the Logger library, the Converter library must be initialized in main. Since it depends on the logger library, you must make sure to initialize logging before initializing the converter library.
@@ -68,7 +72,10 @@ Log::Info().log("Property: Name = {}, Value = {}", prop->getName(), Converter::g
 See `src/Tests/main.cpp` for more examples of how to use the converter library.
 See `src/GTests/Converter_gtest/converter_gtest.cpp` for example usage of the full API.
 
-### Meta
+
+
+
+## Meta
 
 The Meta library provides an API for type retrospection in C++. It seeks to use minimal macros and instead relies primarily on regular C++ function calls to register and interact with the meta info.
 One macro is needed in the class definition, and one macro is needed outside of the class definition. Outside of these two macros, everything is done with regular C++ functions and function templates.
@@ -76,6 +83,7 @@ One macro is needed in the class definition, and one macro is needed outside of 
 Similar to the Logger library, the Meta library must be initialized in main. Since it depends on the Logger library, you must make sure to initialize logging before initializing the converter library.
 
 Currently, the Meta library provides three types of properties: Member properties, const member function properties, and non-const member function properties.
+The Meta library also supports meta info inheritence. Currently the meta info inheritence system does not allow property overriding (all properties must have a unique name).
 
 Here is an example of adding meta info to a basic class:
 ```cpp
