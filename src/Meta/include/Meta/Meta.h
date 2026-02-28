@@ -701,7 +701,7 @@ namespace Meta
 
 		template<typename func>
 			requires std::is_same_v<std::invoke_result_t<func, const MemberPropertyBase*>, InvokeResult>
-		void forAllMemberProps(const func& f) const
+		void forAllMemberProps(const func& f, bool includeParent = true) const
 		{
 			for (const auto* prop : props)
 			{
@@ -709,13 +709,13 @@ namespace Meta
 					return;
 			}
 
-			if (parent)
+			if (parent && includeParent)
 				parent->forAllMemberProps(f);
 		}
 
 		template<typename func>
 			requires std::is_same_v<std::invoke_result_t<func, const MemberNonConstFunctionPropBase*>, InvokeResult>
-		void forAllNonConstMemberFuncs(const func& f) const
+		void forAllNonConstMemberFuncs(const func& f, bool includeParent = true) const
 		{
 			for (const auto* nonConstFunc : nonConstFunctions)
 			{
@@ -723,13 +723,13 @@ namespace Meta
 					return;
 			}
 
-			if (parent)
+			if (parent && includeParent)
 				parent->forAllNonConstMemberFuncs(f);
 		}
 
 		template<typename func>
 			requires std::is_same_v<std::invoke_result_t<func, const MemberConstFunctionPropBase*>, InvokeResult>
-		void forAllConstMemberFuncs(const func& f) const
+		void forAllConstMemberFuncs(const func& f, bool includeParent = true) const
 		{
 			for (const auto* constFunc : constFunctions)
 			{
@@ -737,7 +737,7 @@ namespace Meta
 					return;
 			}
 
-			if (parent)
+			if (parent && includeParent)
 				parent->forAllConstMemberFuncs(f);
 		}
 

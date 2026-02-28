@@ -198,7 +198,7 @@ namespace Meta
 			Log::Info(indent + 3).log("Read Only  : {}", prop->getReadOnly());
 
 			return InvokeResult::CONTINUE;
-		});
+		}, !recursive);
 		Log::Info(indent + 1).log("Const Member Functions:");
 		forAllConstMemberFuncs([this, indent](const MemberConstFunctionPropBase* prop) -> InvokeResult
 		{
@@ -209,7 +209,7 @@ namespace Meta
 			Log::Info(indent + 3).log("Has Default Args: {}", prop->hasDefaultArgs());
 
 			return InvokeResult::CONTINUE;
-		});
+		}, !recursive);
 		Log::Info(indent + 1).log("Non-Const Member Functions:");
 		forAllNonConstMemberFuncs([this, indent](const MemberNonConstFunctionPropBase* prop) -> InvokeResult
 		{
@@ -220,7 +220,7 @@ namespace Meta
 			Log::Info(indent + 3).log("Has Default Args: {}", prop->hasDefaultArgs());
 
 			return InvokeResult::CONTINUE;
-		});
+		}, !recursive);
 
 		if (recursive && parent)
 		{
