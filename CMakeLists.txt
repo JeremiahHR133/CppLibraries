@@ -13,6 +13,14 @@ if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE PATH "")
 endif()
 
+if(MSVC)
+    if(MSVC_VERSION LESS 1938)
+        message(FATAL_ERROR
+            "MSVC 19.38 or newer is required (Visual Studio 2022 17.8+). "
+            "Your version: ${MSVC_VERSION}")
+    endif()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0.0")
         message(FATAL_ERROR "GCC version ${CMAKE_CXX_COMPILER_VERSION} is insufficient. GCC 14 or newer is required.")
