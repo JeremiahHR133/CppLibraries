@@ -13,11 +13,6 @@
 
 #include <Logger/Logger.h>
 
-// TODO: Add some ways of printing an objects meta info out
-//       Should be sufficient for now to just be able to log it
-//       Storing it to a file would be implementation specific
-//       and should be left to the library that does the fileIO
-
 #define _DECLARE_META_OBJECT(classname, pclassname) \
 	private: \
 		friend Meta::Impl::MetaInitializer<classname>; \
@@ -268,6 +263,11 @@ namespace Meta
 		{
 		}
 
+		bool hasDefaultArgs() const
+		{
+			return !defaultArgs.empty();
+		}
+
 		virtual std::any invoke(MetaObjSignature obj, const std::vector<std::any>& args) const = 0;
 		template <typename T>
 		T invokeAsType(MetaObjSignature obj, const std::vector<std::any>& args) const
@@ -279,7 +279,7 @@ namespace Meta
 		// Assuming you won't invoke with default args when the function takes no args...
 		std::any invokeDefaultArgs(MetaObjSignature obj) const
 		{
-			if (defaultArgs.size())
+			if (!defaultArgs.empty())
 				return invoke(obj, defaultArgs);
 			else
 			{
@@ -696,6 +696,8 @@ namespace Meta
 		const MemberNonConstFunctionPropBase* getNonConstFunc(const std::string& name) const;
 		const MemberConstFunctionPropBase* getConstFunc(const std::string& name) const;
 		const ClassMetaBase* getParent() const { return parent; }
+
+		void logTypeInfo(bool recursive = true, int indent = 0) const;
 
 		template<typename func>
 			requires std::is_same_v<std::invoke_result_t<func, const MemberPropertyBase*>, InvokeResult>

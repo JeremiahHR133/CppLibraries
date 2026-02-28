@@ -111,6 +111,9 @@ int main()
 	auto* objMeta = Meta::getClassMeta<ExampleStruct>();
 	if (objMeta)
 	{
+		objMeta->logTypeInfo();
+		Log::Info().log("");
+
 		objMeta->forAllMemberProps([&obj](const Meta::MemberPropertyBase* prop) -> Meta::ClassMetaBase::InvokeResult
 		{
 			Log::Info().log("Property: Name = {}, Value = {}", prop->getName(), Converter::getStringFromAny(prop->getTypeIndex(), prop->getAsAny(obj)));

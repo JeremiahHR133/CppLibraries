@@ -182,6 +182,53 @@ namespace Meta
 		return ret;
 	}
 
+	void ClassMetaBase::logTypeInfo(bool recursive, int indent) const
+	{
+		Log::Info(indent).log("Type info for class \"{}\"", getName());
+		Log::Info(indent + 1).log("Name       : {}", getName());
+		Log::Info(indent + 1).log("Parent Name: {}", getParentName());
+		Log::Info(indent + 1).log("Member Properties:");
+		forAllMemberProps([this, indent](const MemberPropertyBase* prop) -> InvokeResult
+		{
+			Log::Info(indent + 2).log("Type info for property \"{}\"", prop->getName());
+			Log::Info(indent + 3).log("Name       : {}", prop->getName());
+			Log::Info(indent + 3).log("Class Name : {}", prop->getClassName());
+			Log::Info(indent + 3).log("Description: {}", prop->getDescription());
+			Log::Info(indent + 3).log("Has Default: {}", prop->hasDefault());
+			Log::Info(indent + 3).log("Read Only  : {}", prop->getReadOnly());
+
+			return InvokeResult::CONTINUE;
+		});
+		Log::Info(indent + 1).log("Const Member Functions:");
+		forAllConstMemberFuncs([this, indent](const MemberConstFunctionPropBase* prop) -> InvokeResult
+		{
+			Log::Info(indent + 2).log("Type info for property \"{}\"", prop->getName());
+			Log::Info(indent + 3).log("Name            : {}", prop->getName());
+			Log::Info(indent + 3).log("Class Name      : {}", prop->getClassName());
+			Log::Info(indent + 3).log("Description     : {}", prop->getDescription());
+			Log::Info(indent + 3).log("Has Default Args: {}", prop->hasDefaultArgs());
+
+			return InvokeResult::CONTINUE;
+		});
+		Log::Info(indent + 1).log("Non-Const Member Functions:");
+		forAllNonConstMemberFuncs([this, indent](const MemberNonConstFunctionPropBase* prop) -> InvokeResult
+		{
+			Log::Info(indent + 2).log("Type info for property \"{}\"", prop->getName());
+			Log::Info(indent + 3).log("Name            : {}", prop->getName());
+			Log::Info(indent + 3).log("Class Name      : {}", prop->getClassName());
+			Log::Info(indent + 3).log("Description     : {}", prop->getDescription());
+			Log::Info(indent + 3).log("Has Default Args: {}", prop->hasDefaultArgs());
+
+			return InvokeResult::CONTINUE;
+		});
+
+		if (recursive && parent)
+		{
+			Log::Info(indent + 1).log("Type info for parent class \"{}\"", parent->getName());
+			parent->logTypeInfo(recursive, indent + 2);
+		}
+	}
+
 	namespace Impl
 	{
 		void addClass(const ClassMetaBase* c)
