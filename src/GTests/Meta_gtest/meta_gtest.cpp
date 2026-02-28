@@ -7,9 +7,38 @@
 #include <Converter/Converter.h>
 #include <gtest/gtest.h>
 
-class TestMetaBase : public Meta::MetaObject
+class TestMetaDoubleBase : public Meta::MetaObject
 {
-	DECLARE_META_OBJECT(TestMetaBase)
+	DECLARE_META_OBJECT(TestMetaDoubleBase)
+public:
+	TestMetaDoubleBase() = default;
+	virtual ~TestMetaDoubleBase() = default;
+
+	int aFunc(int val) const { return val * 2; }
+	int bFunc(int val) { return val / 2; }
+
+private:
+	std::string m_description = "I am the real base.";
+};
+
+IMPLEMENT_META_OBJECT(TestMetaDoubleBase)
+{
+	w.addMember<&TestMetaDoubleBase::m_description>("description")
+		.setDescription("A description about a description")
+		.setReadOnly();
+
+	w.addFunction<&TestMetaDoubleBase::aFunc>("aFunc")
+		.setDefaultArgs(20)
+		.setDescription("A random function");
+
+	w.addFunction<&TestMetaDoubleBase::bFunc>("bFunc")
+		.setDefaultArgs(20)
+		.setDescription("A second random function");
+}
+
+class TestMetaBase : public TestMetaDoubleBase
+{
+	DECLARE_META_OBJECT(TestMetaBase, TestMetaDoubleBase)
 public:
 
 	TestMetaBase() = default;
@@ -124,8 +153,10 @@ protected:
 std::stringstream MetaTest::s_stream{};
 
 #define GET_META_POINTERS() \
+	auto* metaDoubleBase = Meta::getClassMeta<TestMetaDoubleBase>(); \
 	auto* metaBase = Meta::getClassMeta<TestMetaBase>(); \
 	auto* metaDerived = Meta::getClassMeta<TestMetaObject>(); \
+	ASSERT_TRUE(metaDoubleBase); \
 	ASSERT_TRUE(metaBase); \
 	ASSERT_TRUE(metaDerived);
 	
@@ -159,13 +190,27 @@ TEST_F(MetaTest, ClassPointerIdentity)
 		EXPECT_EQ(metaTemplated, metaNamed);
 		EXPECT_EQ(metaNamed, metaIndexed);
 	}
+
+	// Base type
+	{
+		auto* metaTemplated = Meta::getClassMeta<TestMetaDoubleBase>();
+		auto* metaNamed = Meta::getClassMeta("TestMetaDoubleBase");
+		auto* metaIndexed = Meta::getClassMeta(std::type_index(typeid(TestMetaDoubleBase)));
+
+		ASSERT_TRUE(metaTemplated);
+		ASSERT_TRUE(metaNamed);
+		ASSERT_TRUE(metaIndexed);
+
+		EXPECT_EQ(metaTemplated, metaNamed);
+		EXPECT_EQ(metaNamed, metaIndexed);
+	}
 }
 
 TEST_F(MetaTest, PropCount)
 {
 	GET_META_POINTERS();
 
-	auto getPropCount = [](const Meta::ClassMetaBase* meta)
+	auto getMemberCount = [](const Meta::ClassMetaBase* meta)
 	{
 		int count = 0;
 		meta->forAllMemberProps([&count](const Meta::MemberPropertyBase* prop) -> Meta::ClassMetaBase::InvokeResult
@@ -195,30 +240,37 @@ TEST_F(MetaTest, PropCount)
 		});
 		return count;
 	};
-	EXPECT_EQ(getPropCount(metaBase), 1);
-	EXPECT_EQ(getPropCount(metaDerived), 5);
+	EXPECT_EQ(getMemberCount(metaDoubleBase), 1);
+	EXPECT_EQ(getMemberCount(metaBase), 2);
+	EXPECT_EQ(getMemberCount(metaDerived), 6);
 
-	EXPECT_EQ(getConstFuncCount(metaBase), 0);
-	EXPECT_EQ(getConstFuncCount(metaDerived), 1);
+	EXPECT_EQ(getConstFuncCount(metaDoubleBase), 1);
+	EXPECT_EQ(getConstFuncCount(metaBase), 1);
+	EXPECT_EQ(getConstFuncCount(metaDerived), 2);
 
-	EXPECT_EQ(getNonConstFuncCount(metaBase), 0);
-	EXPECT_EQ(getNonConstFuncCount(metaDerived), 1);
+	EXPECT_EQ(getNonConstFuncCount(metaDoubleBase), 1);
+	EXPECT_EQ(getNonConstFuncCount(metaBase), 1);
+	EXPECT_EQ(getNonConstFuncCount(metaDerived), 2);
 }
 
 TEST_F(MetaTest, HelperFuncs)
 {
 	GET_META_POINTERS();
 
+	EXPECT_EQ(metaDoubleBase->getName(), "TestMetaDoubleBase");
 	EXPECT_EQ(metaBase->getName(), "TestMetaBase");
 	EXPECT_EQ(metaDerived->getName(), "TestMetaObject");
 
+	EXPECT_EQ(metaDoubleBase->getTypeIndex(), std::type_index(typeid(TestMetaDoubleBase)));
 	EXPECT_EQ(metaBase->getTypeIndex(), std::type_index(typeid(TestMetaBase)));
 	EXPECT_EQ(metaDerived->getTypeIndex(), std::type_index(typeid(TestMetaObject)));
 
-	EXPECT_EQ(metaBase->getParentName(), "Meta::Impl::NoParent");
+	EXPECT_EQ(metaDoubleBase->getParentName(), "Meta::Impl::NoParent");
+	EXPECT_EQ(metaBase->getParentName(), metaDoubleBase->getName());
 	EXPECT_EQ(metaDerived->getParentName(), metaBase->getName());
 
 	EXPECT_EQ(metaDerived->getParent(), metaBase);
+	EXPECT_EQ(metaBase->getParent(), metaDoubleBase);
 }
 
 TEST_F(MetaTest, MemberProps)
@@ -226,6 +278,22 @@ TEST_F(MetaTest, MemberProps)
 	GET_META_POINTERS();
 
 	TestMetaObject testObj;
+	// string - DoubleBaseClass prop
+	{
+		auto* prop = metaBase->getMemberProp("description");
+		ASSERT_TRUE(prop);
+
+		EXPECT_EQ(prop->getClassName(), metaDoubleBase->getName());
+		EXPECT_EQ(prop->getDescription(), "A description about a description");
+		EXPECT_EQ(prop->getName(), "description");
+		EXPECT_EQ(prop->getReadOnly(), true);
+		EXPECT_EQ(prop->getTypeIndex(), std::type_index(typeid(std::string)));
+		EXPECT_EQ(prop->hasDefault(), false);
+
+		EXPECT_EQ(std::any_cast<std::string>(prop->getAsAny(testObj)), "I am the real base.");
+		EXPECT_EQ(prop->getAsType<std::string>(testObj), "I am the real base.");
+	}
+
 	// char - Base class prop
 	{
 		auto* prop = metaBase->getMemberProp("char");
@@ -357,6 +425,44 @@ TEST_F(MetaTest, FunctionProps)
 	GET_META_POINTERS();
 
 	TestMetaObject testObj;
+
+	// memberFunction - DoubleBaseClass prop
+	{
+		auto* prop = metaDoubleBase->getConstFunc("aFunc");
+		ASSERT_TRUE(prop);
+
+		EXPECT_EQ(prop->getClassName(), metaDoubleBase->getName());
+		EXPECT_EQ(prop->getDescription(), "A random function");
+		EXPECT_EQ(prop->getName(), "aFunc");
+		EXPECT_EQ(prop->getTypeIndex(), std::type_index(typeid(int)));
+
+		int expected = 20;
+		EXPECT_EQ(std::any_cast<int>(prop->invoke(testObj, { 10 })), expected);
+		EXPECT_EQ(prop->invokeAsType<int>(testObj, { 10 }), expected);
+
+		int expected2 = 40;
+		EXPECT_EQ(std::any_cast<int>(prop->invokeDefaultArgs(testObj)), expected2);
+		EXPECT_EQ(prop->invokeDefaultArgsAsType<int>(testObj), expected2);
+	}
+
+	// memberFunction - DoubleBaseClass prop
+	{
+		auto* prop = metaDoubleBase->getNonConstFunc("bFunc");
+		ASSERT_TRUE(prop);
+
+		EXPECT_EQ(prop->getClassName(), metaDoubleBase->getName());
+		EXPECT_EQ(prop->getDescription(), "A second random function");
+		EXPECT_EQ(prop->getName(), "bFunc");
+		EXPECT_EQ(prop->getTypeIndex(), std::type_index(typeid(int)));
+
+		int expected = 20;
+		EXPECT_EQ(std::any_cast<int>(prop->invoke(testObj, { 40 })), expected);
+		EXPECT_EQ(prop->invokeAsType<int>(testObj, { 40 }), expected);
+
+		int expected2 = 10;
+		EXPECT_EQ(std::any_cast<int>(prop->invokeDefaultArgs(testObj)), expected2);
+		EXPECT_EQ(prop->invokeDefaultArgsAsType<int>(testObj), expected2);
+	}
 
 	// memberFunction - Derived class prop
 	{
