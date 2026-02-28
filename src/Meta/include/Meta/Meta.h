@@ -18,10 +18,6 @@
 //       Storing it to a file would be implementation specific
 //       and should be left to the library that does the fileIO
 
-// TODO: Don't actually add the parents props to the derived vector
-//       Remove all getters to the vector and add functionality to iterate over
-//       the derived and base props recursively.
-
 #define _DECLARE_META_OBJECT(classname, pclassname) \
 	private: \
 		friend Meta::Impl::MetaInitializer<classname>; \
@@ -673,6 +669,12 @@ namespace Meta
 	class META_EXPORT ClassMetaBase
 	{
 	public:
+		enum class InvokeResult
+		{
+			CONTINUE,
+			BREAK,
+		};
+	public:
 		ClassMetaBase(const std::string& name, const std::string& parentName)
 			: name{ name }
 			, parentName{ parentName }
@@ -690,13 +692,52 @@ namespace Meta
 
 		const std::string& getName() const { return name; }
 		const std::string& getParentName() const { return parentName; }
-		const std::vector<const MemberPropertyBase*> getMemberProps() const { return props; }
 		const MemberPropertyBase* getMemberProp(const std::string& name) const;
-		const std::vector<const MemberNonConstFunctionPropBase*> getNonConstFuncs() const { return nonConstFunctions; }
 		const MemberNonConstFunctionPropBase* getNonConstFunc(const std::string& name) const;
-		const std::vector<const MemberConstFunctionPropBase*> getConstFuncs() const { return constFunctions; }
 		const MemberConstFunctionPropBase* getConstFunc(const std::string& name) const;
 		const ClassMetaBase* getParent() const { return parent; }
+
+		template<typename func>
+			requires std::is_same_v<std::invoke_result_t<func, const MemberPropertyBase*>, InvokeResult>
+		void forAllMemberProps(const func& f) const
+		{
+			for (const auto* prop : props)
+			{
+				if (f(prop) == InvokeResult::BREAK)
+					return;
+			}
+
+			if (parent)
+				parent->forAllMemberProps(f);
+		}
+
+		template<typename func>
+			requires std::is_same_v<std::invoke_result_t<func, const MemberNonConstFunctionPropBase*>, InvokeResult>
+		void forAllNonConstMemberFuncs(const func& f) const
+		{
+			for (const auto* nonConstFunc : nonConstFunctions)
+			{
+				if (f(nonConstFunc) == InvokeResult::BREAK)
+					return;
+			}
+
+			if (parent)
+				parent->forAllNonConstMemberFuncs(f);
+		}
+
+		template<typename func>
+			requires std::is_same_v<std::invoke_result_t<func, const MemberConstFunctionPropBase*>, InvokeResult>
+		void forAllConstMemberFuncs(const func& f) const
+		{
+			for (const auto* constFunc : constFunctions)
+			{
+				if (f(constFunc) == InvokeResult::BREAK)
+					return;
+			}
+
+			if (parent)
+				parent->forAllConstMemberFuncs(f);
+		}
 
 		template <typename T>
 		T createAsType()
@@ -748,9 +789,13 @@ namespace Meta
 			if constexpr (std::is_default_constructible_v<ClassType>)
 			{
 				ClassType obj{};
-				for (const Meta::MemberPropertyBase* prop : getMemberProps())
+				forAllMemberProps([&obj](const Meta::MemberPropertyBase* prop) -> InvokeResult
+				{
 					if (prop->hasDefault())
 						prop->applyDefault(obj);
+
+					return InvokeResult::CONTINUE;
+				});
 
 				return std::any(obj);
 			}
@@ -780,6 +825,7 @@ namespace Meta
 		META_EXPORT void addClass(const ClassMetaBase* c);
 		META_EXPORT void addDelayClass(std::function<void()> call);
 		META_EXPORT void addDelayParentInitialize(std::function<void()> call);
+		META_EXPORT void addDelayValidate(std::function<void()> call);
 		META_EXPORT void addDelayMetaInitialize(std::function<void()> call);
 
 		template<typename ClassType>
@@ -790,76 +836,94 @@ namespace Meta
 				: m_classPtr(nullptr)
 			{
 				::Meta::Impl::addDelayClass([name, parentName, this]()
+				{
+					m_classPtr = new ClassMeta<ClassType>(name, parentName);
+					if (m_classPtr)
 					{
-						m_classPtr = new ClassMeta<ClassType>(name, parentName);
-						if (m_classPtr)
-						{
-							::Meta::Impl::addClass(m_classPtr);
-						}
-						else
-						{
-							Log::Critical().log("Unable to allocate new ClassMeta for \"{}\"!", name);
-							assert(m_classPtr);
-						}
+						::Meta::Impl::addClass(m_classPtr);
 					}
-				);
+					else
+					{
+						Log::Critical().log("Unable to allocate new ClassMeta for \"{}\"!", name);
+						assert(m_classPtr);
+					}
+				});
 
 				::Meta::Impl::addDelayMetaInitialize([this]()
+				{
+					if (!m_classPtr)
 					{
-						if (!m_classPtr)
-						{
-							assert(m_classPtr);
-							return;
-						}
-						ClassType::initMeta(*this);
+						assert(m_classPtr);
+						return;
 					}
-				);
+					ClassType::initMeta(*this);
+				});
 
 				::Meta::Impl::addDelayParentInitialize([this]()
+				{
+					if (!m_classPtr)
 					{
-						if (!m_classPtr)
+						assert(m_classPtr);
+						return;
+					}
+					if (m_classPtr->getParentName() != "Meta::Impl::NoParent")
+					{
+						if (const auto* parent = ::Meta::getClassMeta(m_classPtr->getParentName()))
 						{
-							assert(m_classPtr);
-							return;
-						}
-						if (m_classPtr->getParentName() != "Meta::Impl::NoParent")
-						{
-							if (const auto* parent = ::Meta::getClassMeta(m_classPtr->getParentName()))
-							{
-								m_classPtr->parent = parent;
-								// Copy parent props into this class
-								// TODO: This is duplication that can be avoided, but the optimization requires complex storage of props that I don't want to tackle yet
-								for (const auto* prop : parent->getMemberProps())
-								{
-									auto found = std::find_if(m_classPtr->props.begin(), m_classPtr->props.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
-									if (found == m_classPtr->props.end())
-										m_classPtr->props.push_back(prop);
-								}
-								for (const auto* prop : parent->getConstFuncs())
-								{
-									auto found = std::find_if(m_classPtr->constFunctions.begin(), m_classPtr->constFunctions.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
-									if (found == m_classPtr->constFunctions.end())
-										m_classPtr->constFunctions.push_back(prop);
-								}
-								for (const auto* prop : parent->getNonConstFuncs())
-								{
-									auto found = std::find_if(m_classPtr->nonConstFunctions.begin(), m_classPtr->nonConstFunctions.end(), [prop](auto* p) { return p->getName() == prop->getName(); });
-									if (found == m_classPtr->nonConstFunctions.end())
-										m_classPtr->nonConstFunctions.push_back(prop);
-								}
-								Log::Debug().log("Added parent \"{}\" for class \"{}\"", m_classPtr->getParentName(), m_classPtr->getName());
-							}
-							else
-							{
-								Log::Critical().log("Specified parent \"{}\", of class \"{}\" was not found in the meta repo!", m_classPtr->getParentName(), m_classPtr->getName());
-								Log::Critical().log("Was it declared as a meta object?");
-								assert(false);
-							}
+							m_classPtr->parent = parent;
 						}
 						else
-							Log::Debug().log("No parent for class \"{}\"", m_classPtr->getName());
+						{
+							Log::Critical().log("Specified parent \"{}\", of class \"{}\" was not found in the meta repo!", m_classPtr->getParentName(), m_classPtr->getName());
+							Log::Critical().log("Was it declared as a meta object?");
+							assert(false);
+						}
 					}
-				);
+					else
+						Log::Debug().log("No parent for class \"{}\"", m_classPtr->getName());
+				});
+
+				::Meta::Impl::addDelayValidate([this]()
+				{
+					if (!m_classPtr)
+					{
+						assert(m_classPtr);
+						return;
+					}
+					if (!m_classPtr->parent)
+						return;
+
+					auto validateProp = [this](const auto* myProp, const auto* prop)
+					{
+						if (myProp->getName() == prop->getName())
+						{
+							Log::Error().log("Class \"{}\" defined member property \"{}\" which was already defined in a parent class!", m_classPtr->getName(), myProp->getName());
+							Log::Error().log("Property overriding is not supported (yet?)!");
+							assert(false);
+						}
+					};
+
+					m_classPtr->parent->forAllMemberProps([this, &validateProp](const ::Meta::MemberPropertyBase* prop) -> ::Meta::ClassMetaBase::InvokeResult
+					{
+						for (const auto* myProp : m_classPtr->props)
+							validateProp(myProp, prop);
+						return ::Meta::ClassMetaBase::InvokeResult::CONTINUE;
+					});
+
+					m_classPtr->parent->forAllConstMemberFuncs([this, &validateProp](const ::Meta::MemberConstFunctionPropBase* prop) -> ::Meta::ClassMetaBase::InvokeResult
+					{
+						for (const auto* myProp : m_classPtr->constFunctions)
+							validateProp(myProp, prop);
+						return ::Meta::ClassMetaBase::InvokeResult::CONTINUE;
+					});
+
+					m_classPtr->parent->forAllNonConstMemberFuncs([this, &validateProp](const ::Meta::MemberNonConstFunctionPropBase* prop) -> ::Meta::ClassMetaBase::InvokeResult
+					{
+						for (const auto* myProp : m_classPtr->nonConstFunctions)
+							validateProp(myProp, prop);
+						return ::Meta::ClassMetaBase::InvokeResult::CONTINUE;
+					});
+				});
 			}
 			~MetaInitializer() = default;
 

@@ -165,14 +165,44 @@ TEST_F(MetaTest, PropCount)
 {
 	GET_META_POINTERS();
 
-	EXPECT_EQ(metaBase->getMemberProps().size(), 1);
-	EXPECT_EQ(metaDerived->getMemberProps().size(), 5);
+	auto getPropCount = [](const Meta::ClassMetaBase* meta)
+	{
+		int count = 0;
+		meta->forAllMemberProps([&count](const Meta::MemberPropertyBase* prop) -> Meta::ClassMetaBase::InvokeResult
+		{
+			count++;
+			return Meta::ClassMetaBase::InvokeResult::CONTINUE;
+		});
+		return count;
+	};
+	auto getConstFuncCount = [](const Meta::ClassMetaBase* meta)
+	{
+		int count = 0;
+		meta->forAllConstMemberFuncs([&count](const Meta::MemberConstFunctionPropBase* prop) -> Meta::ClassMetaBase::InvokeResult
+		{
+			count++;
+			return Meta::ClassMetaBase::InvokeResult::CONTINUE;
+		});
+		return count;
+	};
+	auto getNonConstFuncCount = [](const Meta::ClassMetaBase* meta)
+	{
+		int count = 0;
+		meta->forAllNonConstMemberFuncs([&count](const Meta::MemberNonConstFunctionPropBase* prop) -> Meta::ClassMetaBase::InvokeResult
+		{
+			count++;
+			return Meta::ClassMetaBase::InvokeResult::CONTINUE;
+		});
+		return count;
+	};
+	EXPECT_EQ(getPropCount(metaBase), 1);
+	EXPECT_EQ(getPropCount(metaDerived), 5);
 
-	EXPECT_EQ(metaBase->getConstFuncs().size(), 0);
-	EXPECT_EQ(metaDerived->getConstFuncs().size(), 1);
+	EXPECT_EQ(getConstFuncCount(metaBase), 0);
+	EXPECT_EQ(getConstFuncCount(metaDerived), 1);
 
-	EXPECT_EQ(metaBase->getNonConstFuncs().size(), 0);
-	EXPECT_EQ(metaDerived->getNonConstFuncs().size(), 1);
+	EXPECT_EQ(getNonConstFuncCount(metaBase), 0);
+	EXPECT_EQ(getNonConstFuncCount(metaDerived), 1);
 }
 
 TEST_F(MetaTest, HelperFuncs)

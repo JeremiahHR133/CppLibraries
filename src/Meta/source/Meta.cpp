@@ -54,6 +54,9 @@ namespace
 	std::vector<std::function<void()>> g_parentInitCallbacks;
 	std::mutex g_parentInitVecMutex;
 
+	std::vector<std::function<void()>> g_validateCallbacks;
+	std::mutex g_validateMutex;
+
 	std::vector<std::function<void()>> g_metaInitCallbacks;
 	std::mutex g_metaInitVecMutex;
 }
@@ -102,6 +105,15 @@ namespace Meta
 				func();
 			}
 		}
+
+		// Validate all parent child relationships
+		{
+			std::lock_guard<std::mutex> lock(g_validateMutex);
+			for (auto& func : g_validateCallbacks)
+			{
+				func();
+			}
+		}
 	}
 
 	const ClassMetaBase* getClassMeta(const std::type_index& index)
@@ -122,41 +134,52 @@ namespace Meta
 		return nullptr;
 	}
 
-	const MemberPropertyBase* getPropMeta(const ClassMetaBase& meta, const std::string& name)
-	{
-		for (const auto* p : meta.getMemberProps())
-			if (p->getName() == name)
-				return p;
-
-		return nullptr;
-	}
-
 	const MemberPropertyBase* ClassMetaBase::getMemberProp(const std::string& name) const
 	{
-		for (const auto* p : getMemberProps())
-			if (p->getName() == name)
-				return p;
+		const MemberPropertyBase* ret = nullptr;
+		forAllMemberProps([&name, &ret](const MemberPropertyBase* prop) -> ClassMetaBase::InvokeResult
+		{
+			if (prop->getName() == name)
+			{
+				ret = prop;
+				return ClassMetaBase::InvokeResult::BREAK;
+			}
+			return ClassMetaBase::InvokeResult::CONTINUE;
+		});
 
-		return nullptr;
+		return ret;
 	}
-
 
 	const MemberNonConstFunctionPropBase* ClassMetaBase::getNonConstFunc(const std::string& name) const
 	{
-		for (const auto* f : getNonConstFuncs())
-			if (f->getName() == name)
-				return f;
+		const MemberNonConstFunctionPropBase* ret = nullptr;
+		forAllNonConstMemberFuncs([&name, &ret](const MemberNonConstFunctionPropBase* prop) -> ClassMetaBase::InvokeResult
+		{
+			if (prop->getName() == name)
+			{
+				ret = prop;
+				return ClassMetaBase::InvokeResult::BREAK;
+			}
+			return ClassMetaBase::InvokeResult::CONTINUE;
+		});
 
-		return nullptr;
+		return ret;
 	}
 
 	const MemberConstFunctionPropBase* ClassMetaBase::getConstFunc(const std::string& name) const
 	{
-		for (const auto* f : getConstFuncs())
-			if (f->getName() == name)
-				return f;
+		const MemberConstFunctionPropBase* ret = nullptr;
+		forAllConstMemberFuncs([&name, &ret](const MemberConstFunctionPropBase* prop) -> ClassMetaBase::InvokeResult
+		{
+			if (prop->getName() == name)
+			{
+				ret = prop;
+				return ClassMetaBase::InvokeResult::BREAK;
+			}
+			return ClassMetaBase::InvokeResult::CONTINUE;
+		});
 
-		return nullptr;
+		return ret;
 	}
 
 	namespace Impl
@@ -176,6 +199,12 @@ namespace Meta
 		{
 			std::lock_guard<std::mutex> lock(g_parentInitVecMutex);
 			g_parentInitCallbacks.push_back(call);
+		}
+
+		void addDelayValidate(std::function<void()> call)
+		{
+			std::lock_guard<std::mutex> lock(g_validateMutex);
+			g_validateCallbacks.push_back(call);
 		}
 
 		void addDelayMetaInitialize(std::function<void()> call)
