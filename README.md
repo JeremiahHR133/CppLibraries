@@ -15,7 +15,15 @@ I haven't tested this project on Linux yet, but I do plan to. Nothing about this
 * C++ 23 (mostly just for std::format)
 * CMake 3.24 +
 
+## Build Commands
 
+Windows:
+1. `cmake -S . -B build`
+2. `cmake --build build`
+
+Linux:
+1. `cmake -S . -B build -DCMAKE_CXX_COMPILER=/usr/bin/g++-14 -DCMAKE_C_COMPILER=/usr/bin/gcc-14`
+2. `cmake --build build`
 
 
 ## Logger

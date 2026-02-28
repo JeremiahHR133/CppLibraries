@@ -359,13 +359,13 @@ namespace Meta
 		}
 
 	private:
-		template <typename... Args, std::size_t... Is>
+		template <typename... ImplArgs, std::size_t... Is>
 		InvokeReturnType invoke_impl(ClassTypeSignature obj, const std::vector<std::any>& args, std::index_sequence<Is...>) const
 		{
 			if constexpr (!std::is_same_v<InvokeReturnType, void>)
-				return std::any((obj.*func)(std::any_cast<Args>(args[Is])...));
+				return std::any((obj.*func)(std::any_cast<ImplArgs>(args[Is])...));
 
-			(obj.*func)(std::any_cast<Args>(args[Is])...);
+			(obj.*func)(std::any_cast<ImplArgs>(args[Is])...);
 		}
 
 		FunctionSignature func;
