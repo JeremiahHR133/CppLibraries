@@ -14,9 +14,9 @@ if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 if(MSVC)
-    if(MSVC_VERSION LESS 1938)
+    if(MSVC_VERSION LESS 1940)
         message(FATAL_ERROR
-            "MSVC 19.38 or newer is required (Visual Studio 2022 17.8+). "
+            "MSVC 19.40 or newer is required (Visual Studio 2022 17.10+). "
             "Your version: ${MSVC_VERSION}")
     endif()
 endif()
