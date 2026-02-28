@@ -1,18 +1,18 @@
 # C++ Libraries
 
-This project contians three libraries: Logger, Converter, and Meta. The Meta library and the Converter library both depend on the Logger library, but the Meta library and the Converter library can be used independently.
+This project contians three libraries: Logger, Converter, and Meta. The Meta library and the Converter library both depend on the Logger library.
 The Converter library exists mostly to help users encode and decode the std::any types that the meta system operates on.
 
 The recomended usage for this project is to add it as a submodule in your own project.
 
-The Meta and Converter library both defer their initialization to a function call. This isn't just done so that logging can be initialized prior to the library.
-It was also done so that projects which load plugins at runtime can allow plugins to specify converter and meta info which will can then be initialized along with all the meta and converter info defined in the current module.
+The Meta and Converter library both defer their initialization to a function call. This isn't done just so that logging can be initialized prior to the library,
+it was also done so that projects which load plugins at runtime can allow plugins to specify converter and meta info which will can then be initialized along with all the meta and converter info defined in the current module.
 
 ## Requirements
 
-I haven't tested this project on Linux yet, but I do plan to. Nothing about this project should be platform dependent; I just haven't had time to setup a Linux box to test it on.
-
-* C++ 23 (mostly just for std::format)
+* C++ 23 (primarily for std::format and std::print)
+	* Visual Studio 2022 17.7 +
+	* g++ 14 +
 * CMake 3.24 +
 
 ## Build Commands
