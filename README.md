@@ -44,6 +44,7 @@ The converter library is a library for defining toString and fromString converte
 Similar to the Logger library, the Converter library must be initialized in main. Since it depends on the logger library, you must make sure to initialize logging before initializing the converter library.
 
 Converters can be registered via the `REGISTER_CONVERTER_FOR_TYPE` macro.
+This macro should be placed anywhere inside of a source file (not in a header). It uses static object initialization to register itself when the module is loaded into memory.
 
 Example converter registration:
 ```cpp
