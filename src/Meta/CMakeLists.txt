@@ -40,3 +40,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
 install(TARGETS ${PROJECT_NAME}
 	RUNTIME DESTINATION bin
 )
+
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
