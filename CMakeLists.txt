@@ -19,6 +19,12 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 endif()
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "CLANG")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "18.0.0")
+        message(FATAL_ERROR "Clang version ${CMAKE_CXX_COMPILER_VERSION} is insufficient. Clang 18 or newer is required.")
+    endif()
+endif()
+
 if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   include(FetchContent)
   FetchContent_Declare(

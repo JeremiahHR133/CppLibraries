@@ -8,12 +8,13 @@ The recomended usage for this project is to add it as a submodule in your own pr
 The Meta and Converter library both defer their initialization to a function call. This isn't done just so that logging can be initialized prior to the library,
 it was also done so that projects which load plugins at runtime can allow plugins to specify converter and meta info which will can then be initialized along with all the meta and converter info defined in the current module.
 
-## Requirements
+## Minimum Requirements
 
 * C++ 23 (primarily for std::format and std::print)
-	* Visual Studio 2022 17.7 +
-	* g++ 14 +
-* CMake 3.24 +
+	* Visual Studio 2022 17.7
+	* g++ 14
+	* clang 18.1.3
+* CMake 3.24
 
 ## Build Commands
 
@@ -21,8 +22,12 @@ Windows:
 1. `cmake -S . -B build`
 2. `cmake --build build`
 
-Linux:
+Linux (gcc):
 1. `cmake -S . -B build -DCMAKE_CXX_COMPILER=/usr/bin/g++-14 -DCMAKE_C_COMPILER=/usr/bin/gcc-14`
+2. `cmake --build build`
+
+Linux (clang):
+1. `cmake -S . -B build -DCMAKE_CXX_COMPILER=/usr/bin/clang++ -DCMAKE_C_COMPILER=/usr/bin/clang`
 2. `cmake --build build`
 
 
