@@ -221,11 +221,14 @@ LoggerBase::~LoggerBase() = default;
 
 void LoggerBase::logInternal(std::string_view message)
 {
+    if (!g_logManager.initialized())
+        return;
+
     for (auto logStream : g_logManager.getStreams())
     {
         if (!logStream.stream)
         {
-            assert(false && "Stream is nullptr! Was Log::initLogging called? Was the stream resource freed?");
+            assert(false && "Stream is nullptr! Was the stream resource released?");
             continue;
         }
 

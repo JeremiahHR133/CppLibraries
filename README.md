@@ -36,13 +36,15 @@ Linux (clang):
 The logger library is essentially a wrapper to std::print. Logs are made by instantiating one of the log level classes (Debug, Info, Warn, Error, Critical) and calling .log() on them.
 The syntax for the .log() call matches the syntax for std::print.
 
-Logging must be initialized before any logs can be made. The logger library takes two streams at initialization; one stream is for all logs, and the other stream will only recieve Error and Critical logs.
+Logging must be initialized before any logs can be made.
+The logger library has a default initializaiton which sets up std::cout and std::cerr with appropriate defaults.
+You can initialize logging with any number of streams. Each stream has its own set of logging options, allowing fine tune control over logging output.
 
 Here is a basic exmaple of logger initialization
 ```cpp
 int main()
 {
-    Log::initLogging(std::cout, std::cerr);
+    Log::initLogging();
     Log::Info().log("Info log {}", "example!");
 }
 ```
