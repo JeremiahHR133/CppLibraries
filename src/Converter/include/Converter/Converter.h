@@ -4,136 +4,126 @@
 
 #include <Logger/Logger.h>
 
-#include <typeindex>
-#include <functional>
 #include <any>
-#include <string>
-#include <vector>
 #include <assert.h>
+#include <functional>
+#include <string>
+#include <typeindex>
+#include <vector>
 
 // TODO: Document usage of this function.
 
 // Register a global converter for a type
 // A converter is a binding of a classname -> <toStringFunc, fromStringFunc>
-// Registering a type as a converter makes it available for the 
+// Registering a type as a converter makes it available for the
 // getStringForType and getTypeFromString functions
 // Only call this macro once per type.
 // C2011 should happen if a converter was declared for a type already
-#define REGISTER_CONVERTER_FOR_TYPE(classname, toStringFunc, fromStringFunc) \
-	template<> \
-	Converter::Impl::StaticConverterRegister<classname> Converter::Impl::ConverterTypeRegister<classname>::s_reg{#classname, toStringFunc, fromStringFunc};
-	//::Converter::Impl::StaticConverterRegister<classname> Converter::Impl::Regs::Converter_ ## classname::ConverterTypeRegister::s_reg(#classname, toStringFunc, fromStringFunc);\
+#define REGISTER_CONVERTER_FOR_TYPE(classname, toStringFunc, fromStringFunc)                                           \
+    template <>                                                                                                        \
+    Converter::Impl::StaticConverterRegister<classname> Converter::Impl::ConverterTypeRegister<classname>::s_reg{      \
+        #classname, toStringFunc, fromStringFunc};
+//::Converter::Impl::StaticConverterRegister<classname> Converter::Impl::Regs::Converter_ ## classname::ConverterTypeRegister::s_reg(#classname, toStringFunc, fromStringFunc);\
 
 // Library to convert from any registered type to a string and vice versa
 // See the REGISTER_CONVERTER macro for how to register a type
 // Many defualt types are alreay registered
 namespace Converter
 {
-	template<typename T>
-	using ToStringFunc = std::function<std::string(const T&)>;
-	template<typename T>
-	using FromStringFunc = std::function<T(const std::string&)>;
+template <typename T> using ToStringFunc = std::function<std::string(const T &)>;
+template <typename T> using FromStringFunc = std::function<T(const std::string &)>;
 
-	struct CONVERTER_EXPORT ConverterInfo
-	{
-		std::string name;
-		std::type_index index;
-		ToStringFunc<std::any> toStr;
-		FromStringFunc<std::any> fromStr;
-	};
+struct CONVERTER_EXPORT ConverterInfo
+{
+    std::string name;
+    std::type_index index;
+    ToStringFunc<std::any> toStr;
+    FromStringFunc<std::any> fromStr;
+};
 
-	// Implementation specifics
-	// No functions in this namespace should be called directly
-	namespace Impl
-	{
-		CONVERTER_EXPORT void addConverter(const ConverterInfo& info);
-		CONVERTER_EXPORT const std::vector<ConverterInfo>& getRegisteredConverters();
+// Implementation specifics
+// No functions in this namespace should be called directly
+namespace Impl
+{
+CONVERTER_EXPORT void addConverter(const ConverterInfo &info);
+CONVERTER_EXPORT const std::vector<ConverterInfo> &getRegisteredConverters();
 
-		CONVERTER_EXPORT std::string getStrUsingConverter(const ConverterInfo& converter, const std::any& val);
-		CONVERTER_EXPORT std::any getAnyUsingConverter(const ConverterInfo& converter, const std::string& val);
+CONVERTER_EXPORT std::string getStrUsingConverter(const ConverterInfo &converter, const std::any &val);
+CONVERTER_EXPORT std::any getAnyUsingConverter(const ConverterInfo &converter, const std::string &val);
 
-		CONVERTER_EXPORT const ConverterInfo* findConverter(const std::string& name);
-		CONVERTER_EXPORT const ConverterInfo* findConverter(const std::type_index& index);
+CONVERTER_EXPORT const ConverterInfo *findConverter(const std::string &name);
+CONVERTER_EXPORT const ConverterInfo *findConverter(const std::type_index &index);
 
-		template<typename T>
-		void registerConverter(const std::string& name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
-		{
-			Impl::addConverter(
-				ConverterInfo
-				{
-					.name    = name,
-					.index   = std::type_index(typeid(T)),
-					.toStr   = [toString](const std::any& val) -> std::string { return toString(std::any_cast<T>(val)); },
-					.fromStr = [fromString](const std::string& val) -> std::any { return std::any(fromString(val));  },
-				}
-			);
-		}
-
-		template<typename T>
-		class StaticConverterRegister
-		{
-		public:
-			StaticConverterRegister(const std::string& name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
-			{
-				::Converter::Impl::registerConverter(name, toString, fromString);
-			}
-			~StaticConverterRegister() = default;
-		};
-
-		template<typename T>
-		class ConverterTypeRegister
-		{
-			static StaticConverterRegister<T> s_reg;
-		};
-	}
-
-	// Call this funciton once at program initialization
-	// This library uses the logging library and depends on logging
-	// being initialized before the call to initializeConverters
-	CONVERTER_EXPORT void initializeConverters();
-
-	// Use the registered converter to turn the type T into a string
-	template<typename T>
-	std::string getStringForType(const T& val)
-	{
-		if (auto* converter = Impl::findConverter(std::type_index(typeid(T))))
-			return Impl::getStrUsingConverter(*converter, std::any(val));
-
-		return "";
-	}
-
-	// Use the registered converter to turn a string into type T
-	template<typename T>
-	T getTypeFromString(const std::string& str)
-	{
-		if (auto* converter = Impl::findConverter(std::type_index(typeid(T))))
-		{
-			try
-			{
-				return std::any_cast<T>(Impl::getAnyUsingConverter(*converter, str));
-			}
-			catch (const std::bad_any_cast& e)
-			{
-				Log::Error().log(
-					"Unable to convert string to type; could not cast converter result to type: {1}! "
-					"Attempted to use converter with name: {1}",
-					std::type_index(typeid(T)).name(), converter->name
-				);
-				assert(false && "Caught bad any cast!");
-			}
-		}
-
-		return T();
-	}
-
-	// Use a type index to convert val into a string using a registered converter
-	CONVERTER_EXPORT std::string getStringFromAny(const std::type_index& index, const std::any& val);
-	// Use a name lookup to convert val into a string using a registered converter
-	CONVERTER_EXPORT std::string getStringFromAny(const std::string& name, const std::any& val);
-	// Use a template type to convert val into a string using a registered converter
-	template<typename T>
-	std::string getStringFromAny(const std::any& val)
-	{
-		return getStringFromAny(std::type_index(typeid(T)), val);
-	}
+template <typename T>
+void registerConverter(const std::string &name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
+{
+    Impl::addConverter(ConverterInfo{
+        .name = name,
+        .index = std::type_index(typeid(T)),
+        .toStr = [toString](const std::any &val) -> std::string { return toString(std::any_cast<T>(val)); },
+        .fromStr = [fromString](const std::string &val) -> std::any { return std::any(fromString(val)); },
+    });
 }
+
+template <typename T> class StaticConverterRegister
+{
+public:
+    StaticConverterRegister(const std::string &name, ToStringFunc<T> toString, FromStringFunc<T> fromString)
+    {
+        ::Converter::Impl::registerConverter(name, toString, fromString);
+    }
+    ~StaticConverterRegister() = default;
+};
+
+template <typename T> class ConverterTypeRegister
+{
+    static StaticConverterRegister<T> s_reg;
+};
+} // namespace Impl
+
+// Call this funciton once at program initialization
+// This library uses the logging library and depends on logging
+// being initialized before the call to initializeConverters
+CONVERTER_EXPORT void initializeConverters();
+
+// Use the registered converter to turn the type T into a string
+template <typename T> std::string getStringForType(const T &val)
+{
+    if (auto *converter = Impl::findConverter(std::type_index(typeid(T))))
+        return Impl::getStrUsingConverter(*converter, std::any(val));
+
+    return "";
+}
+
+// Use the registered converter to turn a string into type T
+template <typename T> T getTypeFromString(const std::string &str)
+{
+    if (auto *converter = Impl::findConverter(std::type_index(typeid(T))))
+    {
+        try
+        {
+            return std::any_cast<T>(Impl::getAnyUsingConverter(*converter, str));
+        }
+        catch (const std::bad_any_cast &e)
+        {
+            Log::Error().log("Unable to convert string to type; could not cast "
+                             "converter result to type: {1}! "
+                             "Attempted to use converter with name: {1}",
+                             std::type_index(typeid(T)).name(), converter->name);
+            assert(false && "Caught bad any cast!");
+        }
+    }
+
+    return T();
+}
+
+// Use a type index to convert val into a string using a registered converter
+CONVERTER_EXPORT std::string getStringFromAny(const std::type_index &index, const std::any &val);
+// Use a name lookup to convert val into a string using a registered converter
+CONVERTER_EXPORT std::string getStringFromAny(const std::string &name, const std::any &val);
+// Use a template type to convert val into a string using a registered converter
+template <typename T> std::string getStringFromAny(const std::any &val)
+{
+    return getStringFromAny(std::type_index(typeid(T)), val);
+}
+} // namespace Converter
