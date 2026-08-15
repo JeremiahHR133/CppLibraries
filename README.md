@@ -11,9 +11,9 @@ it was also done so that projects which load plugins at runtime can allow plugin
 ## Minimum Requirements
 
 * C++ 23 (primarily for std::format and std::print)
-	* Visual Studio 2022 17.7
-	* g++ 14
-	* clang 18.1.3
+    * Visual Studio 2022 17.7
+    * g++ 14
+    * clang 18.1.3
 * CMake 3.24
 
 ## Build Commands
@@ -42,8 +42,8 @@ Here is a basic exmaple of logger initialization
 ```cpp
 int main()
 {
-	Log::initLogging(std::cout, std::cerr);
-	Log::Info().log("Info log {}", "example!");
+    Log::initLogging(std::cout, std::cerr);
+    Log::Info().log("Info log {}", "example!");
 }
 ```
 See `src/Tests/main.cpp` for more examples of how to use the logging library.
@@ -62,9 +62,9 @@ This macro should be placed anywhere inside of a source file (not in a header). 
 Example converter registration:
 ```cpp
 REGISTER_CONVERTER_FOR_TYPE(
-	bool, 
-	[](const bool& b) { return b ? "true" : "false"; },
-	[](const std::string& str) { return str == "true" ? true : false; }
+    bool, 
+    [](const bool& b) { return b ? "true" : "false"; },
+    [](const std::string& str) { return str == "true" ? true : false; }
 )
 ```
 
@@ -72,8 +72,8 @@ Converters can be registered with lambdas (as shown in the example above), or wi
 
 ```cpp
 REGISTER_CONVERTER_FOR_TYPE(ExampleType,
-	&ExampleType::toString,
-	&ExampleType::fromString
+    &ExampleType::toString,
+    &ExampleType::fromString
 )
 ```
 The main usage for the converter library is to operate on std::any types provided by the Meta library.
@@ -105,30 +105,30 @@ Here is an example of adding meta info to a basic class:
 class ExampleStruct : public Meta::MetaObject
 {
     // Macro to declare a class as a meta object
-	DECLARE_META_OBJECT(ExampleStruct)
+    DECLARE_META_OBJECT(ExampleStruct)
 public:
-	ExampleStruct()
-		: one(0)
-		, two(false)
-		, three(0)
-	{
-	}
-	ExampleStruct(int i, bool b, float f)
-		: one(i)
-		, two(b)
-		, three(f)
-	{
-	}
+    ExampleStruct()
+        : one(0)
+        , two(false)
+        , three(0)
+    {
+    }
+    ExampleStruct(int i, bool b, float f)
+        : one(i)
+        , two(b)
+        , three(f)
+    {
+    }
 
-	void setThree(float val) { three = val; }
-	float getThree() const { return three; }
+    void setThree(float val) { three = val; }
+    float getThree() const { return three; }
 
-	bool exampleRandomFunction(bool input) { return input; }
-	bool exampleConstRandomFunction(bool input) const { return input; }
+    bool exampleRandomFunction(bool input) { return input; }
+    bool exampleConstRandomFunction(bool input) const { return input; }
 private:
-	int one;
-	bool two;
-	float three;
+    int one;
+    bool two;
+    float three;
 };
 
 // Macro to implement a meta object
@@ -136,23 +136,23 @@ private:
 IMPLEMENT_META_OBJECT(ExampleStruct)
 {
     // Member property bound directly to the class member
-	w.addMember<&ExampleStruct::one>("one")
-		.setDescription("Test description one!")
-		.setDefault(80085);
+    w.addMember<&ExampleStruct::one>("one")
+        .setDescription("Test description one!")
+        .setDefault(80085);
 
     // Member property bound directly to the class member
-	w.addMember<&ExampleStruct::two>("two")
-		.setDescription("Test description two!")
-		.setReadOnly();
+    w.addMember<&ExampleStruct::two>("two")
+        .setDescription("Test description two!")
+        .setReadOnly();
 
     // Member property bound to a member setter/getter pair
-	w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three")
-		.setDescription("Test description three!");
+    w.addMember<&ExampleStruct::setThree, &ExampleStruct::getThree>("three")
+        .setDescription("Test description three!");
 
-	w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
+    w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 
-	w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction")
-		.setDefaultArgs({true});
+    w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction")
+        .setDefaultArgs({true});
 }
 ```
 
