@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 // Simple logging library
 // Logs to any std::ostream (provided at initialization)
@@ -99,14 +100,14 @@ enum class Level
 
 // Options to control the behavior of the logger
 // These are set once at initialization
-struct LogInitOptions
+struct LogStreamOptions
 {
+    std::vector<Level> levelFilter = {Level::Info, Level::Warning, Level::Error, Level::Critical};
     bool printColor = true;
     bool printLocationInfo = true;
-    bool reportLogInitialized = true;
     bool logFullFunctionName = false;
     bool logFullFilePath = false;
-    std::string indentationLevel = "   ";
+    std::string indentationStep = "   ";
 
     struct ColorSettings
     {
@@ -128,6 +129,12 @@ struct LogInitOptions
     } timeMode = TimeMode::Relative;
 };
 
+struct LogStream
+{
+    std::ostream *stream;
+    LogStreamOptions options;
+};
+
 // Returns a map of <color enum, string holding color escape code>
 LOGGER_EXPORT const std::unordered_map<Color, std::string> &getColorMap();
 // Returns a string holding the color escape code
@@ -135,17 +142,13 @@ LOGGER_EXPORT const std::string &getColorStr(Color color);
 // Returns the string to be printed for a given level
 LOGGER_EXPORT std::string getStringForLevel(Level level);
 // Returns the color that the StringForLevel will be printed in
-LOGGER_EXPORT Color getColorForLevel(Level level);
+LOGGER_EXPORT Color getColorForLevel(Level level, const Log::LogStreamOptions &opts);
+// Creates default stream loggers for cout and cerr with resonable defaults set for each
+LOGGER_EXPORT std::vector<LogStream> getDefaultStdLogStreams();
 // Initializes global logging
 // Call this once at the start of a program
 // All logs will be written to 'stream'
-LOGGER_EXPORT void initLogging(std::ostream &stream, const LogInitOptions &opts = LogInitOptions());
-// Initializes global logging
-// Call this once at the start of a program
-// Normal logs will be written to primaryStream
-// Erorr logs (Error, Critical) will be written to errorStream
-LOGGER_EXPORT void initLogging(std::ostream &primaryStream, std::ostream &errorStream,
-                               const LogInitOptions &opts = LogInitOptions());
+LOGGER_EXPORT void initLogging(const std::vector<LogStream> &streams = getDefaultStdLogStreams());
 // Simplifies the complex semi-mangled function names
 // Example:
 //    void __cdecl Log::initLogging(class std::basic_ostream<char,struct

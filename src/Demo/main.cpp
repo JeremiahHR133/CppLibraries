@@ -75,7 +75,7 @@ IMPLEMENT_META_OBJECT(ExampleStruct)
 
     w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
 
-    w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction").setDefaultArgs({true});
+    w.addFunction<&ExampleStruct::exampleConstRandomFunction>("constRandomFunction").setDefaultArgs(true);
 }
 
 class TEST : public Meta::MetaObject
@@ -90,7 +90,7 @@ IMPLEMENT_META_OBJECT(TEST)
 
 int main()
 {
-    Log::initLogging(std::cout, std::cerr);
+    Log::initLogging();
     Converter::initializeConverters();
     Meta::initializeMetaInfo();
 
