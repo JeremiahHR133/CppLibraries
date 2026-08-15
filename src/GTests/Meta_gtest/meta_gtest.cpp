@@ -129,15 +129,14 @@ protected:
 
     static void SetUpTestSuite()
     {
-        Log::LogInitOptions lInit{
+        Log::LogStreamOptions lInit{
             .printColor = false,
             .printLocationInfo = false,
-            .reportLogInitialized = false,
             .logFullFunctionName = false,
             .logFullFilePath = false,
-            .timeMode = Log::LogInitOptions::TimeMode::None,
+            .timeMode = Log::LogStreamOptions::TimeMode::None,
         };
-        Log::initLogging(s_stream, lInit);
+        Log::initLogging({{&s_stream, lInit}});
         Converter::initializeConverters();
         Meta::initializeMetaInfo();
     }

@@ -15,3 +15,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Test")
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME})
+
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

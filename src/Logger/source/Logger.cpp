@@ -1,10 +1,13 @@
 #include <Logger/Logger.h>
 
+#include <algorithm>
 #include <assert.h>
 #include <chrono>
 #include <filesystem>
 #include <format>
+#include <iostream>
 #include <mutex>
+#include <vector>
 
 namespace
 {
@@ -12,48 +15,35 @@ class LogManager
 {
 public:
     LogManager();
-    LogManager(std::ostream &primaryStream, std::ostream &errorStream, const Log::LogInitOptions &opts);
+    LogManager(const std::vector<Log::LogStream> &streams);
     ~LogManager();
 
+    const std::vector<Log::LogStream> &getStreams() const;
     bool initialized() const;
-    std::ostream *primaryStream() const;
-    std::ostream *errorStream() const;
-    const Log::LogInitOptions &getOpts() const;
     const std::chrono::steady_clock::time_point &getInitTime() const;
 
 private:
-    std::ostream *m_primaryStream;
-    std::ostream *m_errorStream;
+    std::vector<Log::LogStream> m_streams;
     bool m_initialized;
-    Log::LogInitOptions m_opts;
     std::chrono::steady_clock::time_point m_initTime;
 };
-LogManager::LogManager() : m_primaryStream(nullptr), m_errorStream(nullptr), m_initialized(false)
+LogManager::LogManager() : m_initialized(false)
 {
 }
-LogManager::LogManager(std::ostream &primaryStream, std::ostream &errorStream, const Log::LogInitOptions &opts)
-    : m_primaryStream(&primaryStream), m_errorStream(&errorStream), m_initialized(true), m_opts(opts)
+LogManager::LogManager(const std::vector<Log::LogStream> &streams) : m_initialized(true)
 {
     m_initTime = std::chrono::steady_clock::now();
+    m_streams = streams;
 }
 LogManager::~LogManager() = default;
 
+const std::vector<Log::LogStream> &LogManager::getStreams() const
+{
+    return m_streams;
+}
 bool LogManager::initialized() const
 {
     return m_initialized;
-}
-std::ostream *LogManager::primaryStream() const
-{
-    return m_primaryStream;
-}
-std::ostream *LogManager::errorStream() const
-{
-    return m_errorStream;
-}
-
-const Log::LogInitOptions &LogManager::getOpts() const
-{
-    return m_opts;
 }
 
 const std::chrono::steady_clock::time_point &LogManager::getInitTime() const
@@ -131,7 +121,7 @@ const std::unordered_map<Log::Color, std::string> g_colorMap = {
     {Log::Color::backgroundHighIntensity_white, "\033[0;107m"},
 };
 
-void internalInitLogging(std::ostream &primary, std::ostream &error, const Log::LogInitOptions &opts)
+void internalInitLogging(const std::vector<Log::LogStream> &streams)
 {
     if (g_logManager.initialized())
     {
@@ -140,12 +130,8 @@ void internalInitLogging(std::ostream &primary, std::ostream &error, const Log::
     }
     else
     {
-        g_logManager = LogManager(primary, error, opts);
-
-        if (g_logManager.getOpts().reportLogInitialized)
-        {
-            Log::Info().log("Logging initialized!");
-        }
+        g_logManager = LogManager(streams);
+        Log::Debug().log("Logging initialized!");
     }
 }
 } // namespace
@@ -188,24 +174,24 @@ std::string getStringForLevel(Level level)
     return "";
 }
 
-Color getColorForLevel(Level level)
+Color getColorForLevel(Level level, const Log::LogStreamOptions &opts)
 {
     switch (level)
     {
     case Level::Debug:
-        return g_logManager.getOpts().colorSettings.debug;
+        return opts.colorSettings.debug;
         break;
     case Level::Info:
-        return g_logManager.getOpts().colorSettings.info;
+        return opts.colorSettings.info;
         break;
     case Level::Warning:
-        return g_logManager.getOpts().colorSettings.warn;
+        return opts.colorSettings.warn;
         break;
     case Level::Error:
-        return g_logManager.getOpts().colorSettings.error;
+        return opts.colorSettings.error;
         break;
     case Level::Critical:
-        return g_logManager.getOpts().colorSettings.critical;
+        return opts.colorSettings.critical;
         break;
     default:
         break;
@@ -235,101 +221,107 @@ LoggerBase::~LoggerBase() = default;
 
 void LoggerBase::logInternal(std::string_view message)
 {
-    std::ostream *stdStreamPtr = g_logManager.primaryStream();
-    std::ostream *errStreamPtr = g_logManager.errorStream();
-    if (!stdStreamPtr || !errStreamPtr)
+    for (auto logStream : g_logManager.getStreams())
     {
-        assert(false && "Stream is nullptr! Was Log::initLogging called?");
-        return;
-    }
-
-    std::ostringstream tmpBuff;
-
-    if (g_logManager.getOpts().timeMode != LogInitOptions::TimeMode::None)
-    {
-        if (g_logManager.getOpts().printColor)
-            tmpBuff << getColorStr(g_logManager.getOpts().colorSettings.timeInfo);
-
-        tmpBuff << "[";
-
-        if (g_logManager.getOpts().timeMode == LogInitOptions::TimeMode::Absolute)
+        if (!logStream.stream)
         {
-            auto now = std::chrono::system_clock::now();
-            std::chrono::zoned_time localTime{std::chrono::current_zone(), now};
-            // I get an intellisense error on this line lol
-            tmpBuff << std::format("{:%F %T}", localTime);
-        }
-        else if (g_logManager.getOpts().timeMode == LogInitOptions::TimeMode::Relative)
-        {
-            auto ellapsedTime = std::chrono::steady_clock::now() - g_logManager.getInitTime();
-            tmpBuff << std::format("{:%T}", ellapsedTime);
+            assert(false && "Stream is nullptr! Was Log::initLogging called? Was the stream resource freed?");
+            continue;
         }
 
-        tmpBuff << "]";
+        if (std::ranges::find(logStream.options.levelFilter, m_level) == logStream.options.levelFilter.end())
+            continue;
 
-        if (g_logManager.getOpts().printColor)
+        std::ostringstream tmpBuff;
+
+        if (logStream.options.timeMode != LogStreamOptions::TimeMode::None)
+        {
+            if (logStream.options.printColor)
+                tmpBuff << getColorStr(logStream.options.colorSettings.timeInfo);
+
+            tmpBuff << "[";
+
+            if (logStream.options.timeMode == LogStreamOptions::TimeMode::Absolute)
+            {
+                auto now = std::chrono::system_clock::now();
+                std::chrono::zoned_time localTime{std::chrono::current_zone(), now};
+                // I get an intellisense error on this line lol
+                tmpBuff << std::format("{:%F %T}", localTime);
+            }
+            else if (logStream.options.timeMode == LogStreamOptions::TimeMode::Relative)
+            {
+                auto ellapsedTime = std::chrono::steady_clock::now() - g_logManager.getInitTime();
+                tmpBuff << std::format("{:%T}", ellapsedTime);
+            }
+
+            tmpBuff << "]";
+
+            if (logStream.options.printColor)
+                tmpBuff << getColorStr(Color::reset);
+
+            tmpBuff << " ";
+        }
+
+        if (logStream.options.printColor)
+            tmpBuff << getColorStr(getColorForLevel(m_level, logStream.options));
+
+        tmpBuff << "[" << getStringForLevel(m_level) << "]";
+
+        for (int i = 0; i < m_indentation; i++)
+        {
+            tmpBuff << logStream.options.indentationStep;
+        }
+
+        if (logStream.options.printColor)
             tmpBuff << getColorStr(Color::reset);
 
-        tmpBuff << " ";
-    }
+        tmpBuff << " " << message;
 
-    if (g_logManager.getOpts().printColor)
-        tmpBuff << getColorStr(getColorForLevel(m_level));
+        if (logStream.options.printLocationInfo)
+        {
+            if (logStream.options.printColor)
+                tmpBuff << getColorStr(logStream.options.colorSettings.functionInfo);
 
-    tmpBuff << "[" << getStringForLevel(m_level) << "]";
+            tmpBuff << " --- ";
+            if (logStream.options.logFullFunctionName)
+                tmpBuff << m_location.function_name();
+            else
+                tmpBuff << getSimpleFunctionName(m_location.function_name());
 
-    for (int i = 0; i < m_indentation; i++)
-    {
-        tmpBuff << g_logManager.getOpts().indentationLevel;
-    }
+            tmpBuff << " (";
 
-    if (g_logManager.getOpts().printColor)
-        tmpBuff << getColorStr(Color::reset);
+            if (logStream.options.logFullFilePath)
+                tmpBuff << m_location.file_name();
+            else
+                tmpBuff << std::filesystem::path(m_location.file_name())
+                               .filename()
+                               .string(); // .string() here to remove quotes from path
 
-    tmpBuff << " " << message;
+            tmpBuff << ":" << m_location.line() << "," << m_location.column() << ")";
 
-    if (g_logManager.getOpts().printLocationInfo)
-    {
-        if (g_logManager.getOpts().printColor)
-            tmpBuff << getColorStr(g_logManager.getOpts().colorSettings.functionInfo);
+            if (logStream.options.printColor)
+                tmpBuff << getColorStr(Color::reset);
+        }
 
-        tmpBuff << " --- ";
-        if (g_logManager.getOpts().logFullFunctionName)
-            tmpBuff << m_location.function_name();
-        else
-            tmpBuff << getSimpleFunctionName(m_location.function_name());
+        tmpBuff << "\n";
 
-        tmpBuff << " (";
-
-        if (g_logManager.getOpts().logFullFilePath)
-            tmpBuff << m_location.file_name();
-        else
-            tmpBuff << std::filesystem::path(m_location.file_name())
-                           .filename()
-                           .string(); // .string() here to remove quotes from path
-
-        tmpBuff << ":" << m_location.line() << "," << m_location.column() << ")";
-
-        if (g_logManager.getOpts().printColor)
-            tmpBuff << getColorStr(Color::reset);
-    }
-
-    tmpBuff << "\n";
-
-    std::ostream &stream = (m_level == Level::Error || m_level == Level::Critical) ? *errStreamPtr : *stdStreamPtr;
-    {
-        std::lock_guard<std::mutex> guard(g_logMutex);
-        stream << tmpBuff.view();
+        {
+            std::lock_guard<std::mutex> guard(g_logMutex);
+            *logStream.stream << tmpBuff.view();
+        }
     }
 }
 
-void initLogging(std::ostream &stream, const LogInitOptions &opts)
+std::vector<LogStream> getDefaultStdLogStreams()
 {
-    internalInitLogging(stream, stream, opts);
+    return {
+        {.stream = &std::cout, .options = {.levelFilter = {Level::Info, Level::Warning}}},
+        {.stream = &std::cerr, .options = {.levelFilter = {Level::Error, Level::Critical}}},
+    };
 }
 
-void initLogging(std::ostream &primaryStream, std::ostream &errorStream, const LogInitOptions &opts)
+void initLogging(const std::vector<LogStream> &streams)
 {
-    internalInitLogging(primaryStream, errorStream, opts);
+    internalInitLogging(streams);
 }
 } // namespace Log

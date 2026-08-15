@@ -1,4 +1,4 @@
-project(Tests)
+project(Demo)
 
 set(SOURCES
     ./main.cpp
