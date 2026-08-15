@@ -1,21 +1,21 @@
 project(Meta)
 
 set(SOURCES
-	./source/Meta.cpp
+    ./source/Meta.cpp
 )
 
 set(HEADERS
-	./include/Meta/Meta.h
-	./include/Meta/MetaExport.h
+    ./include/Meta/Meta.h
+    ./include/Meta/MetaExport.h
 )
 
 add_library(${PROJECT_NAME} SHARED
-	${SOURCES}
-	${HEADERS}
+    ${SOURCES}
+    ${HEADERS}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-	include
+    include
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
@@ -28,17 +28,17 @@ target_compile_definitions(${PROJECT_NAME}
 )
 
 if (MSVC)
-	# MSVC has weird default preprocessor behavior when expanding __VA_ARGS__
-	target_compile_options(${PROJECT_NAME}
-		PUBLIC
-		/Zc:preprocessor
-	)
+    # MSVC has weird default preprocessor behavior when expanding __VA_ARGS__
+    target_compile_options(${PROJECT_NAME}
+        PUBLIC
+        /Zc:preprocessor
+    )
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
 
 install(TARGETS ${PROJECT_NAME}
-	RUNTIME DESTINATION bin
+    RUNTIME DESTINATION bin
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)

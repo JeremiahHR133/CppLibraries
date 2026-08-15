@@ -1,21 +1,21 @@
 project(Logger)
 
 set(SOURCES
-	./source/Logger.cpp
+    ./source/Logger.cpp
 )
 
 set(HEADERS
-	./include/Logger/Logger.h
-	./include/Logger/LoggerExport.h
+    ./include/Logger/Logger.h
+    ./include/Logger/LoggerExport.h
 )
 
 add_library(${PROJECT_NAME} SHARED
-	${SOURCES}
-	${HEADERS}
+    ${SOURCES}
+    ${HEADERS}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-	include
+    include
 )
 
 target_compile_definitions(${PROJECT_NAME}
@@ -26,7 +26,7 @@ target_compile_definitions(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
 
 install(TARGETS ${PROJECT_NAME}
-	RUNTIME DESTINATION bin
+    RUNTIME DESTINATION bin
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)

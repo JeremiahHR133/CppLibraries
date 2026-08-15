@@ -1,21 +1,21 @@
 project(Converter)
 
 set(SOURCES
-	./source/Converter.cpp
+    ./source/Converter.cpp
 )
 
 set(HEADERS
-	./include/Converter/Converter.h
-	./include/Converter/ConverterExport.h
+    ./include/Converter/Converter.h
+    ./include/Converter/ConverterExport.h
 )
 
 add_library(${PROJECT_NAME} SHARED
-	${SOURCES}
-	${HEADERS}
+    ${SOURCES}
+    ${HEADERS}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-	include
+    include
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
@@ -30,7 +30,7 @@ target_compile_definitions(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
 
 install(TARGETS ${PROJECT_NAME}
-	RUNTIME DESTINATION bin
+    RUNTIME DESTINATION bin
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)

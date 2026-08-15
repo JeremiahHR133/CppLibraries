@@ -3,12 +3,12 @@ enable_testing()
 project(Converter_gtest)
 
 add_executable(${PROJECT_NAME}
-	converter_gtest.cpp
+    converter_gtest.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
-	GTest::gtest_main
-	Converter
+    GTest::gtest_main
+    Converter
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Test")
