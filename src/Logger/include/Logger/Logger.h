@@ -133,7 +133,7 @@ struct LogStreamOptions
                                          .effect = TextProp::Effect::bold};
         TextProp timeInfo = TextProp{.foregroundColor = TextProp::Color::bright_black,
                                      .backgroundColor = TextProp::Color::reset,
-                                     .effect = TextProp::Effect::bold | TextProp::Effect::underline};
+                                     .effect = TextProp::Effect::bold};
     } textSettings;
 
     enum class TimeMode
