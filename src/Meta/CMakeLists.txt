@@ -1,31 +1,35 @@
 project(Meta)
 
-set(SOURCES
-    ./source/Meta.cpp
+add_library(${PROJECT_NAME} SHARED)
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        source/Meta.cpp
+
+    PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS include
+        FILES
+            include/Meta/Meta.h
+            include/Meta/MetaExport.h
 )
 
-set(HEADERS
-    ./include/Meta/Meta.h
-    ./include/Meta/MetaExport.h
-)
-
-add_library(${PROJECT_NAME} SHARED
-    ${SOURCES}
-    ${HEADERS}
-)
-
-target_include_directories(${PROJECT_NAME} PUBLIC
-    include
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE
+        META_LIB
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Logger
 )
 
-target_compile_definitions(${PROJECT_NAME}
-    PRIVATE
-    META_LIB
+install(
+    TARGETS ${PROJECT_NAME}
+    EXPORT CppLibraries
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    FILE_SET HEADERS
 )
+
 
 if (MSVC)
     # MSVC has weird default preprocessor behavior when expanding __VA_ARGS__
@@ -34,11 +38,5 @@ if (MSVC)
         /Zc:preprocessor
     )
 endif()
-
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
-
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
-)
-
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)

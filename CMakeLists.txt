@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Libraries)
+project(CppLibraries)
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(CMAKE_CXX_STANDARD 23)
@@ -10,7 +10,16 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/bin)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
 
-  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE PATH "")
+  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install)
+  include(GNUInstallDirs)
+  set(INSTALL_NAMESPACE "CppLibraries::")
+  set(CMAKE_BUILD_RPATH ON)
+  set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib")
+
+  # Set default to Release if CMAKE_BUILD_TYPE is empty
+  if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose build type" FORCE)
+  endif()
 
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
@@ -51,3 +60,9 @@ endif()
 add_subdirectory(src)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+install(
+    EXPORT CppLibraries
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CppLibraries
+    NAMESPACE ${INSTALL_NAMESPACE}
+)

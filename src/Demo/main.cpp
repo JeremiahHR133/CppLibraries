@@ -2,8 +2,6 @@
 #include <Logger/Logger.h>
 #include <Meta/Meta.h>
 
-#include <iostream>
-
 class ExampleStructBase : public Meta::MetaObject
 {
     DECLARE_META_OBJECT(ExampleStructBase)

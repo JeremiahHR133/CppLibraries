@@ -7,119 +7,134 @@
 #include <source_location>
 #include <sstream>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 // Simple logging library
 // Logs to any std::ostream (provided at initialization)
 namespace Log
 {
-// All ANSI color codes
-// These codes are bound to a map containing the string value of the color
-// that can be printed to a terminal that supports ANSI color escapes
-// Use getColorMap and getColorStr to interact with the colors
-enum class Color
+// ANSI 4-bit colors
+// Not all terminals support all options
+struct TextProp
 {
-    reset,
+    enum class Color
+    {
+        reset,
 
-    regular_black,
-    regular_red,
-    regular_green,
-    regular_yellow,
-    regular_blue,
-    regular_purple,
-    regular_cyan,
-    regular_white,
+        black,
+        red,
+        green,
+        yellow,
+        blue,
+        magenta,
+        cyan,
+        white,
 
-    bold_black,
-    bold_red,
-    bold_green,
-    bold_yellow,
-    bold_blue,
-    bold_purple,
-    bold_cyan,
-    bold_white,
+        bright_black,
+        bright_red,
+        bright_green,
+        bright_yellow,
+        bright_blue,
+        bright_magenta,
+        bright_cyan,
+        bright_white,
+    };
+    enum class Effect
+    {
+        reset = 0,
 
-    underline_black,
-    underline_red,
-    underline_green,
-    underline_yellow,
-    underline_blue,
-    underline_purple,
-    underline_cyan,
-    underline_white,
+        bold = 1 << 0,
+        faint = 1 << 1,
+        italic = 1 << 2,
+        underline = 1 << 3,
+        crossed_out = 1 << 4,
+        overline = 1 << 5,
+    };
 
-    background_black,
-    background_red,
-    background_green,
-    background_yellow,
-    background_blue,
-    background_purple,
-    background_cyan,
-    background_white,
-
-    highIntensity_black,
-    highIntensity_red,
-    highIntensity_green,
-    highIntensity_yellow,
-    highIntensity_blue,
-    highIntensity_purple,
-    highIntensity_cyan,
-    highIntensity_white,
-
-    boldHighIntensity_black,
-    boldHighIntensity_red,
-    boldHighIntensity_green,
-    boldHighIntensity_yellow,
-    boldHighIntensity_blue,
-    boldHighIntensity_purple,
-    boldHighIntensity_cyan,
-    boldHighIntensity_white,
-
-    backgroundHighIntensity_black,
-    backgroundHighIntensity_red,
-    backgroundHighIntensity_green,
-    backgroundHighIntensity_yellow,
-    backgroundHighIntensity_blue,
-    backgroundHighIntensity_purple,
-    backgroundHighIntensity_cyan,
-    backgroundHighIntensity_white,
+    Color foregroundColor = Color::reset;
+    Color backgroundColor = Color::reset;
+    Effect effect = Effect::reset;
 };
+
+inline constexpr TextProp::Effect operator|(TextProp::Effect lhs, TextProp::Effect rhs)
+{
+    using T = std::underlying_type_t<TextProp::Effect>;
+    return static_cast<TextProp::Effect>(static_cast<T>(lhs) | static_cast<T>(rhs));
+}
+inline constexpr TextProp::Effect operator&(TextProp::Effect lhs, TextProp::Effect rhs)
+{
+    using T = std::underlying_type_t<TextProp::Effect>;
+    return static_cast<TextProp::Effect>(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+inline constexpr TextProp::Effect operator~(TextProp::Effect eff)
+{
+    using T = std::underlying_type_t<TextProp::Effect>;
+    return static_cast<TextProp::Effect>(~static_cast<T>(eff));
+}
 
 // Logging level
-// Controls some aspects of the way messages are logged
-// depending on what logging options are set
+// Allows a stream to distinguish which levels are enabled
 enum class Level
 {
-    Debug,
-    Info,
-    Warning,
-    Error,
-    Critical,
+    Debug = 0,
+    Info = 1 << 0,
+    Warning = 1 << 1,
+    Error = 1 << 2,
+    Critical = 1 << 3,
 };
+inline constexpr Level operator|(Level lhs, Level rhs)
+{
+    using T = std::underlying_type_t<Level>;
+    return static_cast<Level>(static_cast<T>(lhs) | static_cast<T>(rhs));
+}
+inline constexpr Level operator&(Level lhs, Level rhs)
+{
+    using T = std::underlying_type_t<Level>;
+    return static_cast<Level>(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+inline constexpr Level operator~(Level lvl)
+{
+    using T = std::underlying_type_t<Level>;
+    return static_cast<Level>(~static_cast<T>(lvl));
+}
 
 // Options to control the behavior of the logger
-// These are set once at initialization
+// These are set for each stream
 struct LogStreamOptions
 {
-    std::vector<Level> levelFilter = {Level::Info, Level::Warning, Level::Error, Level::Critical};
+    Level levelFilter = Level::Debug | Level::Info | Level::Warning | Level::Error | Level::Critical;
     bool printColor = true;
     bool printLocationInfo = true;
     bool logFullFunctionName = false;
     bool logFullFilePath = false;
     std::string indentationStep = "   ";
 
-    struct ColorSettings
+    struct TextSettings
     {
-        Color debug = Color::highIntensity_white;
-        Color info = Color::highIntensity_green;
-        Color warn = Color::highIntensity_yellow;
-        Color error = Color::highIntensity_red;
-        Color critical = Color::underline_red;
+        TextProp debug = TextProp{.foregroundColor = TextProp::Color::bright_white,
+                                  .backgroundColor = TextProp::Color::reset,
+                                  .effect = TextProp::Effect::bold};
+        TextProp info = TextProp{.foregroundColor = TextProp::Color::bright_green,
+                                 .backgroundColor = TextProp::Color::reset,
+                                 .effect = TextProp::Effect::bold};
+        TextProp warn = TextProp{.foregroundColor = TextProp::Color::bright_yellow,
+                                 .backgroundColor = TextProp::Color::reset,
+                                 .effect = TextProp::Effect::bold};
+        TextProp error = TextProp{.foregroundColor = TextProp::Color::bright_red,
+                                  .backgroundColor = TextProp::Color::reset,
+                                  .effect = TextProp::Effect::bold};
+        TextProp critical =
+            TextProp{.foregroundColor = TextProp::Color::bright_red,
+                     .backgroundColor = TextProp::Color::reset,
+                     .effect = TextProp::Effect::bold | TextProp::Effect::underline | TextProp::Effect::overline};
 
-        Color functionInfo = Color::highIntensity_black;
-        Color timeInfo = Color::highIntensity_black;
-    } colorSettings;
+        TextProp functionInfo = TextProp{.foregroundColor = TextProp::Color::bright_black,
+                                         .backgroundColor = TextProp::Color::reset,
+                                         .effect = TextProp::Effect::bold};
+        TextProp timeInfo = TextProp{.foregroundColor = TextProp::Color::bright_black,
+                                     .backgroundColor = TextProp::Color::reset,
+                                     .effect = TextProp::Effect::bold | TextProp::Effect::underline};
+    } textSettings;
 
     enum class TimeMode
     {
@@ -135,14 +150,12 @@ struct LogStream
     LogStreamOptions options;
 };
 
-// Returns a map of <color enum, string holding color escape code>
-LOGGER_EXPORT const std::unordered_map<Color, std::string> &getColorMap();
-// Returns a string holding the color escape code
-LOGGER_EXPORT const std::string &getColorStr(Color color);
-// Returns the string to be printed for a given level
+// Returns a string holding the ANSI escape code for the text property
+LOGGER_EXPORT std::string getTextPropStr(TextProp prop);
+// Returns the string to be printed for a given level (e.g. "Debug", "Info", etc.)
 LOGGER_EXPORT std::string getStringForLevel(Level level);
-// Returns the color that the StringForLevel will be printed in
-LOGGER_EXPORT Color getColorForLevel(Level level, const Log::LogStreamOptions &opts);
+// Returns the TextProperty that the StringForLevel will be printed in
+LOGGER_EXPORT TextProp getTextPropForLevel(Level level, const Log::LogStreamOptions &opts);
 // Creates default stream loggers for cout and cerr with resonable defaults set for each
 LOGGER_EXPORT std::vector<LogStream> getDefaultStdLogStreams();
 // Initializes global logging

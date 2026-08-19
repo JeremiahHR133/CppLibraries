@@ -1,36 +1,34 @@
 project(Converter)
 
-set(SOURCES
-    ./source/Converter.cpp
+add_library(${PROJECT_NAME} SHARED)
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        source/Converter.cpp
+
+    PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS include
+        FILES
+            include/Converter/Converter.h
+            include/Converter/ConverterExport.h
 )
 
-set(HEADERS
-    ./include/Converter/Converter.h
-    ./include/Converter/ConverterExport.h
-)
-
-add_library(${PROJECT_NAME} SHARED
-    ${SOURCES}
-    ${HEADERS}
-)
-
-target_include_directories(${PROJECT_NAME} PUBLIC
-    include
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE
+        CONVERTER_LIB
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Logger
 )
 
-target_compile_definitions(${PROJECT_NAME}
-    PRIVATE
-    CONVERTER_LIB
+install(
+    TARGETS ${PROJECT_NAME}
+    EXPORT CppLibraries
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    FILE_SET HEADERS
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Lib")
-
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
-)
-
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
