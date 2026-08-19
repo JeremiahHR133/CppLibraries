@@ -77,25 +77,25 @@ public:                                                                         
 
 // Declare an object as exported to the meta system
 // Use this in the class definition, as shown:
-//		class ExampleStruct : public Meta::MetaObject
-//		{
-//			DECLARE_META_OBJECT(ExampleStruct)
-//		public:
-//			<your code here>
-//		};
+//        class ExampleStruct : public Meta::MetaObject
+//        {
+//            DECLARE_META_OBJECT(ExampleStruct)
+//        public:
+//            <your code here>
+//        };
 #define DECLARE_META_OBJECT(...) META_DECLARE_MACRO_CHOOSER(__VA_ARGS__)(__VA_ARGS__)
 
 // Implement an object that has been declared as a meta object
 // Use this in the class implementation, as shown:
-// 		IMPLEMENT_META_OBJECT(ExampleStruct)
-// 		{
-// 			w.addMember<&ExampleStruct::one>("one");
-// 			w.addMember<&ExampleStruct::two>("two");
-// 			w.addMember<&ExampleStruct::setThree,
+//         IMPLEMENT_META_OBJECT(ExampleStruct)
+//         {
+//             w.addMember<&ExampleStruct::one>("one");
+//             w.addMember<&ExampleStruct::two>("two");
+//             w.addMember<&ExampleStruct::setThree,
 // &ExampleStruct::getThree>("three");
-// 			w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
-// 		}
-//		<your code here>
+//             w.addFunction<&ExampleStruct::exampleRandomFunction>("randomFunction");
+//         }
+//        <your code here>
 #define IMPLEMENT_META_OBJECT(classname) _IMPLEMENT_META_OBJECT(classname)
 
 // Simple meta system
