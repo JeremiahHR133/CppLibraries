@@ -1,6 +1,7 @@
 project(Logger)
 
 add_library(${PROJECT_NAME} SHARED)
+add_library(CppLibraries::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
     PRIVATE
