@@ -141,7 +141,7 @@ struct LogStreamOptions
         None,     // Don't print any timing information
         Relative, // Print the time since initLogging was called
         Absolute, // Print the current date time
-    } timeMode = TimeMode::Relative;
+    } timeMode = TimeMode::None;
 };
 
 struct LogStream
