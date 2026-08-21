@@ -192,6 +192,15 @@ std::string getSimpleFunctionName(std::string_view name)
     return "";
 }
 
+bool willLogMessage(Level level)
+{
+    for (auto stream : g_logManager.getStreams())
+        if (static_cast<std::underlying_type_t<Level>>(stream.options.levelFilter & level))
+            return true;
+
+    return false;
+}
+
 LoggerBase::LoggerBase(int indentaion, Level level, const std::source_location &location)
     : m_level(level), m_location(location), m_indentation(indentaion)
 {

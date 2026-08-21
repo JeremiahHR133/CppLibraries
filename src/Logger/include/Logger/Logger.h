@@ -170,6 +170,10 @@ LOGGER_EXPORT void initLogging(const std::vector<LogStream> &streams = getDefaul
 //    Log::initLogging
 LOGGER_EXPORT std::string getSimpleFunctionName(std::string_view name);
 
+// Returns true if a message of a certain level
+// will be logged to any streams
+LOGGER_EXPORT bool willLogMessage(Level level);
+
 // Base class for loggers
 // Can be used directly, but is meant to be used via the derived classes
 // Intended usage example:
@@ -184,6 +188,9 @@ public:
 
     template <class... Args> LoggerBase &log(std::format_string<Args...> fmt, Args &&...args)
     {
+        if (!willLogMessage(m_level))
+            return *this;
+
         std::ostringstream stream;
         std::print(stream, fmt, std::forward<Args>(args)...);
         logInternal(stream.view());
